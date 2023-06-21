@@ -1,7 +1,7 @@
-## Secret Ballot Lite
-This is a demo or light weight version of [opl-secret-ballot](https://github.com/oasislabs/opl-secret-ballot).
+## Demo Voting App
 
-There are two key smart contracts that we will deploy, one interacting with a host chain such as Binance and one interacting with OPL or an enclave on Sapphire.
+This is a demo voting app running natively on Oasis Sapphire. The app is a fork
+of the [OPL Secret Ballot](https://github.com/oasisprotocol/playground/tree/main/opl-secret-ballot).
 
 ### Backend
 
@@ -14,7 +14,7 @@ pnpm install
 
 Build smart contracts
 ```sh
-pnpm run build
+pnpm build
 ```
 
 ### Frontend
@@ -27,12 +27,12 @@ pnpm install
 
 Compile and Hot-Reload for Development
 ```sh
-pnpm run dev
+pnpm dev
 ```
 
 Build assets for deployment
 ```sh
-pnpm run build
+pnpm build
 ```
 
 ### Local Development
@@ -69,7 +69,7 @@ VITE_PINATA_JWT=
 
 Start Vue app
 ```sh
-npm run dev
+pnpm dev
 ```
 
 Navigate to http://localhost:5173, and you should be able to create a new poll.
