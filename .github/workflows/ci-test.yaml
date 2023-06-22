@@ -1,0 +1,48 @@
+name: Build and test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - uses: pnpm/action-setup@v2.2.4
+        name: Install pnpm
+        with:
+          version: 7
+          run_install: false
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: |
+          echo "pnpm_cache_dir=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.pnpm_cache_dir }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build backend
+        working-directory: backend
+        run: |
+          # TODO: Run build:compile separately to wait for hardhat compiler to install etc. otherwise build rule would continue with compilation even though contracts are not compiled yet.
+          pnpm build:compile
+          pnpm build
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build
+      - name: Test backend
+        working-directory: backend
+        run: pnpm test
