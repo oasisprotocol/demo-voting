@@ -37,7 +37,7 @@ pnpm build
 
 ### Local Development
 
-We will use [Hardhat](https://hardhat.org/hardhat-runner/docs/getting-started#overview) and [Hardhat-deploy](https://github.com/wighawag/hardhat-deploy) to simplify development.
+We will use [Hardhat] and [Hardhat-deploy] to simplify development.
 
 Start local Hardhat network
 ```sh
@@ -75,3 +75,6 @@ pnpm dev
 Navigate to http://localhost:5173, and you should be able to create a new poll.
 
 You can use one of the deployed test accounts and associated private key with MetaMask.
+
+[Hardhat]: https://hardhat.org/hardhat-runner/docs/getting-started#overview
+[Hardhat-deploy]: https://github.com/wighawag/hardhat-deploy
