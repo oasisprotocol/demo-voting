@@ -62,7 +62,6 @@ contract BallotBoxV1 {
                 topChoiceCount = choiceVoteCount;
             }
         }
-        emit BallotClosed(proposalId, topChoice);
         delete _ballots[proposalId];
         return topChoice;
     }

@@ -13,6 +13,7 @@ contract DAOv1 {
     error NoChoices();
     error TooManyChoices();
 
+    event ProposalCreated(ProposalId id);
     event ProposalClosed(ProposalId id, uint256 topChoice);
 
     struct Proposal {
