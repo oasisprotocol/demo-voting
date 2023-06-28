@@ -16,8 +16,7 @@ export enum Network {
   SapphireMainnet = 0x5afe,
   Local = 1337,
 
-  Enclave = BigNumber.from(import.meta.env.VITE_ENCLAVE_NETWORK).toNumber(),
-  Host = BigNumber.from(import.meta.env.VITE_HOST_NETWORK).toNumber(),
+  FromConfig = BigNumber.from(import.meta.env.VITE_NETWORK).toNumber(),
 }
 
 export enum ConnectionStatus {
@@ -46,9 +45,9 @@ export function networkName(network?: Network): string {
 export const useEthereumStore = defineStore('ethereum', () => {
   const signer = shallowRef<ethers.Signer | undefined>(undefined);
   const provider = shallowRef<ethers.providers.Provider>(
-    new ethers.providers.JsonRpcProvider(import.meta.env.VITE_HOST_WEB3_GATEWAY, 'any'),
+    new ethers.providers.JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any'),
   );
-  const network = ref(Network.Host);
+  const network = ref(Network.FromConfig);
   const address = ref<string | undefined>(undefined);
   const status = ref(ConnectionStatus.Unknown);
 

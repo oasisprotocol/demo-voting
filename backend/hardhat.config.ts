@@ -66,9 +66,6 @@ const config: HardhatUserConfig = {
     hardhat: {
       chainId: 1337, // @see https://hardhat.org/metamask-issue.html
     },
-    local: {
-      url: 'http://127.0.0.1:8545',
-    },
     goerli: {
       url: 'https://goerli.infura.io/v3/813e377eac3a4e74b1f7262b3b20b3c6',
       chainId: 5,
@@ -79,12 +76,12 @@ const config: HardhatUserConfig = {
       chainId: 11155111,
       accounts,
     },
-    'bsc_testnet': {
-      url: 'https://data-seed-prebsc-1-s1.binance.org:8545',
-      chainId: 97,
+    'sapphire': {
+      url: 'https://sapphire.oasis.io',
+      chainId: 0x5afe,
       accounts,
     },
-    'sapphire_testnet': {
+    'sapphire-testnet': {
       url: 'https://testnet.sapphire.oasis.dev',
       chainId: 0x5aff,
       accounts,

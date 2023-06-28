@@ -39,7 +39,6 @@
   "dependencies": {
     "@ethersproject/abi": "^5.7.0",
     "@ethersproject/providers": "^5.7.2",
-    "@oasisprotocol/sapphire-contracts": "^0.2.0",
     "@openzeppelin/contracts": "^4.8.1",
     "ethers": "^5.7.2"
   },

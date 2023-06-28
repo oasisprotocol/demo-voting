@@ -10,7 +10,6 @@ importers:
       '@ethersproject/bytes': ^5.7.0
       '@ethersproject/providers': ^5.7.2
       '@nomiclabs/hardhat-ethers': ^2.2.2
-      '@oasisprotocol/sapphire-contracts': ^0.2.0
       '@oasisprotocol/sapphire-hardhat': ^1.0.3
       '@openzeppelin/contracts': ^4.8.1
       '@typechain/ethers-v5': ^10.2.0
@@ -34,7 +33,6 @@ importers:
     dependencies:
       '@ethersproject/abi': 5.7.0
       '@ethersproject/providers': 5.7.2
-      '@oasisprotocol/sapphire-contracts': 0.2.1
       '@openzeppelin/contracts': 4.9.2
       ethers: 5.7.2
     devDependencies:
@@ -1229,10 +1227,6 @@ packages:
       uint32: 0.2.1
     dev: true
 
-  /@oasisprotocol/sapphire-contracts/0.2.1:
-    resolution: {integrity: sha512-FN/Eugi8atoHSaM5dwa7MUeb+ohBpHOZK5bdqzloyW/znopbL6ujlfdFmdl3BTpOYsKxGl530fwl7gcRFF5dZQ==}
-    dev: false
-
   /@oasisprotocol/sapphire-hardhat/1.0.3_6qtx7vkbdhwvdm4crzlegk4mvi:
     resolution: {integrity: sha512-R9pnvAtX5kd3ABf8k9u8Lvikzar3aFkKQOZH4eaS4ZQq4iWWkjWUnsPR0uzaQ881dYNFPdTSiwHGq8T5lRVe6Q==}
     dependencies:
@@ -1547,7 +1541,6 @@ packages:
 
   /@types/node/20.3.2:
     resolution: {integrity: sha512-vOBLVQeCQfIcF/2Y7eKFTqrMnizK5lRNQ7ykML/5RuwVXVWxYkgwS7xbt4B6fKCUPgbSL5FSsjHQpaGQP/dQmw==}
-    dev: false
 
   /@types/normalize-package-data/2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -1566,7 +1559,7 @@ packages:
   /@types/readable-stream/2.3.15:
     resolution: {integrity: sha512-oM5JSKQCcICF1wvGgmecmHldZ48OZamtMxcGGVICOJA8o8cahXC1zEVAif8iwoc5j8etxFaRFnf095+CDsuoFQ==}
     dependencies:
-      '@types/node': 18.16.18
+      '@types/node': 20.3.2
       safe-buffer: 5.1.2
     dev: true
 

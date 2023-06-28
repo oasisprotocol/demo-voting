@@ -18,7 +18,7 @@ async function fetchProposals(
   fetcher: (offset: number, batchSize: number) => Promise<DAOv1.ProposalWithIdStructOutput[]>,
   destination: Record<string, FullProposal>,
 ): Promise<void> {
-  await eth.switchNetwork(Network.Host);
+  await eth.switchNetwork(Network.FromConfig);
   const batchSize = 100;
   for (let offset = 0; ; offset += batchSize) {
     let proposals: DAOv1.ProposalWithIdStructOutput[] = [];

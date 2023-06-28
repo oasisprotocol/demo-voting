@@ -1,80 +1,101 @@
 ## Demo Voting App
 
 This is a demo voting app running natively on Oasis Sapphire. The app is a fork
-of the [OPL Secret Ballot](https://github.com/oasisprotocol/playground/tree/main/opl-secret-ballot).
+of the [OPL Secret Ballot].
+
+[OPL Secret Ballot]: https://github.com/oasisprotocol/playground/tree/main/opl-secret-ballot
 
 ### Backend
 
-This repo is set up for `pnpm` but other NodeJS package managers should work.
+This monorepo is set up for `pnpm`. Install dependencies by running:
 
-Install dependencies
 ```sh
 pnpm install
 ```
 
-Build smart contracts
+Then, move to the `backend` folder and build smart contracts:
+
 ```sh
 pnpm build
 ```
 
 ### Frontend
 
-Install dependencies
+After compiling the backend, you can move to the `frontend` folder to compile
+and Hot-Reload frontend for Development:
 
-```sh
-pnpm install
-```
-
-Compile and Hot-Reload for Development
 ```sh
 pnpm dev
 ```
 
-Build assets for deployment
+You can build assets for deployment by running:
+
 ```sh
 pnpm build
 ```
 
 ### Local Development
 
-We will use [Hardhat] and [Hardhat-deploy] to simplify development.
+We use [Hardhat] and [Hardhat-deploy] to simplify development.
 
-Start local Hardhat network
+Move to the `backend` folder and start local Hardhat network:
+
 ```sh
 npx hardhat node
 ```
 
-Deploy smart contracts locally
+Deploy smart contracts to that local network:
+
 ```sh
-npx hardhat deploy-local --network localhost
+npx hardhat deploy --network localhost
 ```
 
 We can now reference the deployed contracts in our frontend Vue app.
 
-Modify the `.env.development` file with the appropriate addresses:
-```yaml
+Modify the `.env.development` file with the appropriate addresses,
+for example:
+
+```
+VITE_DAO_V1_ADDR=0xa16E02E87b7454126E5E10d957A927A7F5B5d2be
 VITE_BALLOT_BOX_V1_ADDR=0x5FbDB2315678afecb367f032d93F642f64180aa3
 ```
-and
-```yaml
-VITE_DAO_V1_ADDR=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-```
 
-Additionally, we will need a [Pinata](https://www.pinata.cloud) API [key](https://docs.pinata.cloud/pinata-api/authentication) to access the pinning
-service with which we store our ballots as JSON.
+Additionally, we need a [Pinata API key] to access the IPFS pinning
+service where we store details of the ballots to.
 
 ```yaml
 VITE_PINATA_JWT=
 ```
 
-Start Vue app
+Start Vue app:
+
 ```sh
 pnpm dev
 ```
 
 Navigate to http://localhost:5173, and you should be able to create a new poll.
 
-You can use one of the deployed test accounts and associated private key with MetaMask.
+You can use one of the deployed test accounts and associated private key with
+MetaMask. If you use the same MetaMask accounts on fresh local networks, don't
+forget to *clear your account's activity* each time or manually specify the
+correct account nonce.
+
+### Deploy to Testnet or Mainnet
+
+Prepare your hex-encoded private key and move to the `backend` folder.
+
+To deploy your contract to the Sapphire Testnet, run:
+
+```shell
+PRIVATE_KEY=0x... npx hardhat deploy --network sapphire-testnet
+```
+
+To deploy your contract to the Sapphire Mainnet, run:
+
+```shell
+PRIVATE_KEY=0x... npx hardhat deploy --network sapphire
+```
 
 [Hardhat]: https://hardhat.org/hardhat-runner/docs/getting-started#overview
 [Hardhat-deploy]: https://github.com/wighawag/hardhat-deploy
+[Pinata API key]: https://docs.pinata.cloud/pinata-api/authentication
