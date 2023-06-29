@@ -24,12 +24,18 @@ contract BallotBoxV1 {
 
     event BallotClosed(ProposalId indexed id, uint256 topChoice);
 
+    address _owner;
     mapping(ProposalId => Ballot) private _ballots;
+
+    constructor() {
+        _owner = msg.sender; // Casting vote should be allowed by the owner only (usually DAO contract).
+    }
 
     function castVote(
         ProposalId proposalId,
         uint256 choiceIdBig
-    ) external payable {
+    ) external {
+        require(msg.sender==_owner);
         Ballot storage ballot = _ballots[proposalId];
         if (!ballot.active) revert NotActive();
         uint8 choiceId = uint8(choiceIdBig & 0xff);

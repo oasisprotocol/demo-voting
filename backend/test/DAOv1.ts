@@ -11,7 +11,8 @@ describe("DAOv1", function () {
     ];
 
     const DAOv1 = await ethers.getContractFactory("DAOv1");
-    const dao = await DAOv1.deploy();
+    // XXX: Can we change "0x0..." to null, undefined, address(0) or just have it optional?
+    const dao = await DAOv1.deploy("0x0000000000000000000000000000000000000000");
 
     return { dao, proposals };
   }
@@ -36,9 +37,9 @@ describe("DAOv1", function () {
     expect(createEvent!.args).to.not.be.undefined;
     const [proposalId] = createEvent!.args!;
 
-    const BallotBoxV1 = await ethers.getContractFactory("BallotBoxV1");
-    const bb = await BallotBoxV1.attach(await dao.ballotBox());
-    await (await bb.castVote(proposalId, 2)).wait();
+    // Whitelist the voter.
+    await (await dao.setAllowedPollVoters(proposalId, [(await ethers.getSigners())[0].address])).wait();
+    await (await dao.castVote(proposalId, 2)).wait();
 
     const closeProposalTx = (await dao.closeProposal(proposalId));
     const closeProposalRc = await closeProposalTx.wait();
