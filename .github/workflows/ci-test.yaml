@@ -15,7 +15,8 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          # NB: node 18 (18.16 currently) has issues running hardhat compile below. Use node-version: 18 once we bump hardhat to at least 2.16.1 which resolves this issue.
+          node-version: 18.15
       - uses: pnpm/action-setup@v2.2.4
         name: Install pnpm
         with:
@@ -37,12 +38,10 @@ jobs:
       - name: Build backend
         working-directory: backend
         run: |
-          # TODO: Run build:compile separately to wait for hardhat compiler to install etc. otherwise build rule would continue with compilation even though contracts are not compiled yet.
-          pnpm build:compile
           pnpm build
-      - name: Build frontend
-        working-directory: frontend
-        run: pnpm build
       - name: Test backend
         working-directory: backend
         run: pnpm test
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build

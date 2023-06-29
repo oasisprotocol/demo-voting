@@ -70,7 +70,7 @@ async function createPoll(e: Event): Promise<void> {
 
 async function doCreatePoll(): Promise<string> {
   await eth.connect();
-  await eth.switchNetwork(Network.Host);
+  await eth.switchNetwork(Network.FromConfig);
   if (errors.value.length > 0) return '';
   const poll: Poll = {
     creator: eth.address!,

@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Enclave, Result, autoswitch} from "@oasisprotocol/sapphire-contracts/contracts/OPL.sol";
-
 import "./Types.sol"; // solhint-disable-line no-global-import
 
-contract BallotBoxV1 is Enclave {
+contract BallotBoxV1 {
     error NotPublishingVotes();
     error AlreadyVoted();
     error UnknownChoice();
@@ -28,10 +26,6 @@ contract BallotBoxV1 is Enclave {
 
     mapping(ProposalId => Ballot) private _ballots;
 
-    constructor(address dao) Enclave(dao, autoswitch("bsc")) {
-        registerEndpoint("createBallot", _oplCreateBallot);
-    }
-
     function castVote(
         ProposalId proposalId,
         uint256 choiceIdBig
@@ -40,7 +34,7 @@ contract BallotBoxV1 is Enclave {
         if (!ballot.active) revert NotActive();
         uint8 choiceId = uint8(choiceIdBig & 0xff);
         if (choiceId >= ballot.params.numChoices) revert UnknownChoice();
-        Choice memory existingVote = ballot.votes[_msgSender()];
+        Choice memory existingVote = ballot.votes[msg.sender];
         // 1 click 1 vote
         for (uint256 i; i < ballot.params.numChoices; ++i) {
             // read-modify-write all counts to make it harder to determine which one is chosen.
@@ -48,17 +42,28 @@ contract BallotBoxV1 is Enclave {
             // Arithmetic is not guaranteed to be constant time, so this might still leak the choice to a highly motivated observer.
             ballot.voteCounts[i] += i == choiceId ? 1 : 0;
             ballot.voteCounts[i] -= existingVote.exists && existingVote.choice == i
-                ? 1
-                : 0;
+            ? 1
+            : 0;
         }
-        ballot.votes[_msgSender()].exists = true;
-        ballot.votes[_msgSender()].choice = choiceId;
+        ballot.votes[msg.sender].exists = true;
+        ballot.votes[msg.sender].choice = choiceId;
     }
 
-    function closeBallot(ProposalId proposalId) external payable {
+    function closeBallot(ProposalId proposalId) public payable returns (uint256) {
         Ballot storage ballot = _ballots[proposalId];
         if (!ballot.active) revert NotActive();
-        _closeBallot(proposalId, ballot);
+
+        uint256 topChoice;
+        uint256 topChoiceCount;
+        for (uint8 i; i < ballot.params.numChoices; ++i) {
+            uint256 choiceVoteCount = ballot.voteCounts[i] & (type(uint256).max >> 1);
+            if (choiceVoteCount > topChoiceCount) {
+                topChoice = i;
+                topChoiceCount = choiceVoteCount;
+            }
+        }
+        delete _ballots[proposalId];
+        return topChoice;
     }
 
     function getVoteOf(ProposalId proposalId, address voter) external view returns (Choice memory) {
@@ -72,7 +77,7 @@ contract BallotBoxV1 is Enclave {
         return _ballots[id].active;
     }
 
-    function _oplCreateBallot(bytes calldata args) internal returns (Result) {
+    function createBallot(bytes calldata args) public {
         (ProposalId id, ProposalParams memory params) = abi.decode(
             args,
             (ProposalId, ProposalParams)
@@ -81,21 +86,5 @@ contract BallotBoxV1 is Enclave {
         ballot.params = params;
         ballot.active = true;
         for (uint256 i; i < params.numChoices; ++i) ballot.voteCounts[i] = 1 << 255; // gas usage side-channel resistance.
-        return Result.Success;
-    }
-
-    function _closeBallot(ProposalId _proposalId, Ballot storage _ballot) internal {
-        uint256 topChoice;
-        uint256 topChoiceCount;
-        for (uint8 i; i < _ballot.params.numChoices; ++i) {
-            uint256 choiceVoteCount = _ballot.voteCounts[i] & (type(uint256).max >> 1);
-            if (choiceVoteCount > topChoiceCount) {
-                topChoice = i;
-                topChoiceCount = choiceVoteCount;
-            }
-        }
-        postMessage("ballotClosed", abi.encode(_proposalId, topChoice));
-        emit BallotClosed(_proposalId, topChoice);
-        delete _ballots[_proposalId];
     }
 }

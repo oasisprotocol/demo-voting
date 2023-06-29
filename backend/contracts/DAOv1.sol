@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Host, Result} from "@oasisprotocol/sapphire-contracts/contracts/OPL.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./Types.sol"; // solhint-disable-line no-global-import
+import "./BallotBoxV1.sol"; // solhint-disable-line no-global-import
 
-contract DAOv1 is Host {
+contract DAOv1 {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     error AlreadyExists();
     error NoChoices();
     error TooManyChoices();
 
+    event ProposalCreated(ProposalId id);
     event ProposalClosed(ProposalId id, uint256 topChoice);
 
     struct Proposal {
@@ -29,9 +30,10 @@ contract DAOv1 is Host {
     mapping(ProposalId => Proposal) public proposals;
     EnumerableSet.Bytes32Set private activeProposals;
     ProposalId[] private pastProposals;
+    BallotBoxV1 public immutable ballotBox;
 
-    constructor(address _ballotBox) Host(_ballotBox) {
-        registerEndpoint("ballotClosed", _oplBallotClosed);
+    constructor() {
+        ballotBox = new BallotBoxV1();
     }
 
     function createProposal(ProposalParams calldata _params) external payable returns (ProposalId) {
@@ -44,7 +46,8 @@ contract DAOv1 is Host {
         proposal.params = _params;
         proposal.active = true;
         activeProposals.add(proposalHash);
-        postMessage("createBallot", abi.encode(proposalId, _params));
+        ballotBox.createBallot(abi.encode(proposalId, _params));
+        emit ProposalCreated(proposalId);
         return proposalId;
     }
 
@@ -76,13 +79,12 @@ contract DAOv1 is Host {
         }
     }
 
-    function _oplBallotClosed(bytes calldata _args) internal returns (Result) {
-        (ProposalId proposalId, uint16 topChoice) = abi.decode(_args, (ProposalId, uint16));
-        proposals[proposalId].topChoice = topChoice;
+    function closeProposal(ProposalId proposalId) external payable {
+        uint256 topChoice = ballotBox.closeBallot(proposalId);
+        proposals[proposalId].topChoice = uint16(topChoice);
         proposals[proposalId].active = false;
         activeProposals.remove(ProposalId.unwrap(proposalId));
         pastProposals.push(proposalId);
         emit ProposalClosed(proposalId, topChoice);
-        return Result.Success;
     }
 }

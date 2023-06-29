@@ -39,7 +39,6 @@
   "dependencies": {
     "@ethersproject/abi": "^5.7.0",
     "@ethersproject/providers": "^5.7.2",
-    "@oasisprotocol/sapphire-contracts": "^0.2.0",
     "@openzeppelin/contracts": "^4.8.1",
     "ethers": "^5.7.2"
   },
@@ -56,7 +55,7 @@
     "@types/node": "^18.14.0",
     "canonicalize": "^1.0.8",
     "chai": "^4.3.7",
-    "hardhat": "2.15.0",
+    "hardhat": "~2.12.0",
     "hardhat-watcher": "^2.5.0",
     "npm-run-all": "^4.1.5",
     "prettier": "^2.8.4",

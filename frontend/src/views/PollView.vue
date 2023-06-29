@@ -53,13 +53,13 @@ const canSelect = computed(() => {
 
 async function closeBallot(): Promise<void> {
   await eth.connect();
-  await eth.switchNetwork(Network.Enclave);
-  const tx = await ballotBoxV1.value.write!.closeBallot(proposalId, {
+  await eth.switchNetwork(Network.FromConfig);
+  const tx = await daoV1.value.closeProposal(proposalId, {
     value: ethers.utils.parseEther('0.03'),
   });
   const receipt = await tx.wait();
 
-  if (receipt.status != 1) throw new Error('cast vote tx failed');
+  if (receipt.status != 1) throw new Error('close ballot tx failed');
 }
 
 async function vote(e: Event): Promise<void> {
@@ -83,7 +83,7 @@ async function doVote(): Promise<void> {
   const choice = selectedChoice.value;
 
   console.log('casting vote');
-  await eth.switchNetwork(Network.Enclave);
+  await eth.switchNetwork(Network.FromConfig);
   const tx = await ballotBoxV1.value.write!.castVote(proposalId, choice, {
     value: ethers.utils.parseEther('0.03'),
   });
