@@ -84,9 +84,7 @@ async function doVote(): Promise<void> {
 
   console.log('casting vote');
   await eth.switchNetwork(Network.FromConfig);
-  const tx = await ballotBoxV1.value.write!.castVote(proposalId, choice, {
-    value: ethers.utils.parseEther('0.03'),
-  });
+  const tx = await ballotBoxV1.value.write!.castVote(proposalId, choice);
   const receipt = await tx.wait();
 
   if (receipt.status != 1) throw new Error('cast vote tx failed');

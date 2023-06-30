@@ -95,7 +95,7 @@ async function doCreatePoll(): Promise<string> {
   const value = ethers.utils.parseEther('0.005');
   const proposalId = await dao.value.callStatic.createProposal(proposalParams, { value });
   console.log('creating proposal');
-  const createProposalTx = await dao.value.createProposal(proposalParams, { value });
+  const createProposalTx = await dao.value.createProposal(proposalParams);
   console.log('creating proposal in', createProposalTx.hash);
   if ((await createProposalTx.wait()).status !== 1)
     throw new Error('createProposal tx receipt reported failure.');
