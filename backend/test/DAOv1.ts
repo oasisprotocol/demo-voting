@@ -52,7 +52,7 @@ describe("DAOv1", function () {
     const [proposalId] = createEvent!.args!;
 
     const acl_addr = await dao.acl();
-    const acl = (await ethers.getContractFactory("SimplePollACLv1")).attach(acl_addr);
+    const acl = (await ethers.getContractFactory("SimpleWhitelistACLv1")).attach(acl_addr);
 
     // Whitelist the voter.
     //await (await acl.setAllowedPollVoters(proposalId, [(await ethers.getSigners())[0].address])).wait();
