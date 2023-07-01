@@ -5,14 +5,13 @@ import { ContentLoader } from 'vue-content-loader';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import { staticDAOv1, useDAOv1, useBallotBoxV1 } from '../contracts';
+import { staticDAOv1, useDAOv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 
 const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
 
 const daoV1 = useDAOv1();
-const ballotBoxV1 = useBallotBoxV1();
 const eth = useEthereumStore();
 
 const error = ref('');
@@ -25,7 +24,7 @@ const selectedChoice = ref<number | undefined>();
 const existingVote = ref<number | undefined>(undefined);
 
 (async () => {
-  const [active, topChoice, params] = await daoV1.value.callStatic.proposals(proposalId);
+  const [active, params, topChoice] = await daoV1.value.callStatic.proposals(proposalId);
   const proposal = { id: proposalId, active, topChoice, params };
   const ipfsParamsRes = await fetch(`https://w3s.link/ipfs/${params.ipfsHash}`);
   const ipfsParams = await ipfsParamsRes.json();
@@ -54,9 +53,7 @@ const canSelect = computed(() => {
 async function closeBallot(): Promise<void> {
   await eth.connect();
   await eth.switchNetwork(Network.FromConfig);
-  const tx = await daoV1.value.closeProposal(proposalId, {
-    value: ethers.utils.parseEther('0.03'),
-  });
+  const tx = await daoV1.value.closeProposal(proposalId);
   const receipt = await tx.wait();
 
   if (receipt.status != 1) throw new Error('close ballot tx failed');
@@ -84,7 +81,7 @@ async function doVote(): Promise<void> {
 
   console.log('casting vote');
   await eth.switchNetwork(Network.FromConfig);
-  const tx = await ballotBoxV1.value.write!.castVote(proposalId, choice);
+  const tx = await daoV1.value.castVote(proposalId, choice);
   const receipt = await tx.wait();
 
   if (receipt.status != 1) throw new Error('cast vote tx failed');

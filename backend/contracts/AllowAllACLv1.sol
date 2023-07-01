@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./PollACLv1.sol"; // solhint-disable-line no-global-import
+
+contract AllowAllACLv1 is PollACLv1 {
+    function canCreatePoll(address)
+        external pure
+        returns(bool)
+    {
+        // Anyone can create a poll
+        return true;
+    }
+
+    function onPollCreated(address dao, ProposalId proposalId, address creator)
+        external
+    {
+        // Do nothing
+    }
+
+    function canManagePoll(address, ProposalId, address)
+        external pure
+        returns(bool)
+    {
+        // Anyone can manage any poll
+        return true;
+    }
+
+    function canVoteOnPoll(address, ProposalId, address)
+        external pure
+        returns(bool)
+    {
+        // Anyone can vote on any poll
+        return true;
+    }
+}

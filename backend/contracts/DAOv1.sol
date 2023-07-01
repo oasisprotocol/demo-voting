@@ -4,8 +4,7 @@ pragma solidity ^0.8.0;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./Types.sol"; // solhint-disable-line no-global-import
-import "./BallotBoxV1.sol"; // solhint-disable-line no-global-import
-import "./SimplePollACLv1.sol"; // solhint-disable-line no-global-import
+import "./AllowAllACLv1.sol"; // solhint-disable-line no-global-import
 
 contract DAOv1 {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -13,14 +12,21 @@ contract DAOv1 {
     error AlreadyExists();
     error NoChoices();
     error TooManyChoices();
+    error NotPublishingVotes();
+    error AlreadyVoted();
+    error UnknownChoice();
+    error NotActive();
 
     event ProposalCreated(ProposalId id);
-    event ProposalClosed(ProposalId id, uint256 topChoice);
+    event ProposalClosed(ProposalId indexed id, uint256 topChoice);
+
+    // --------------------------------------------------------------
+    // Structures
 
     struct Proposal {
         bool active;
-        uint16 topChoice;
         ProposalParams params;
+        uint8 topChoice;
     }
 
     struct ProposalWithId {
@@ -28,90 +34,200 @@ contract DAOv1 {
         Proposal proposal;
     }
 
-    mapping(ProposalId => Proposal) public proposals;
-    EnumerableSet.Bytes32Set private activeProposals;
-    ProposalId[] private pastProposals;
-    BallotBoxV1 public immutable ballotBox;
-    PollACLv1 public immutable acl;
+    uint256 constant MAX_CHOICES = 32;
 
-    // Stores (dao, ProposalID) => list of allowed voters.
-    // This is always in sync with acl.setAllowedPollVoters(), but is in form of
-    // a list here for managing it.
-    mapping (bytes32 => address[]) allowedPollVotersList;
-
-    constructor(PollACLv1 a) {
-        acl = (address(a) == address(0)) ? new SimplePollACLv1() : a;
-        ballotBox = new BallotBoxV1();
+    struct Ballot {
+        /// voter -> choice id
+        mapping(address => Choice) votes;
+        /// choice id -> vote
+        uint256[MAX_CHOICES] voteCounts;
     }
 
-    function createProposal(ProposalParams calldata _params) external returns (ProposalId) {
-        bytes32 proposalHash = keccak256(abi.encode(msg.sender, _params));
-        ProposalId proposalId = ProposalId.wrap(proposalHash);
+    struct Choice {
+        bool exists;
+        uint8 choice;
+    }
+
+    // --------------------------------------------------------------
+    // Storage
+
+    mapping(ProposalId => Ballot) private _ballots;
+
+    mapping(ProposalId => Proposal) public proposals;
+
+    EnumerableSet.Bytes32Set private activeProposals;
+
+    ProposalId[] private pastProposals;
+
+    PollACLv1 public immutable acl;
+
+    // --------------------------------------------------------------
+
+    constructor(PollACLv1 a) {
+        acl = (address(a) == address(0)) ? new AllowAllACLv1() : a;
+    }
+
+    function createProposal(ProposalParams calldata _params)
+        external
+        returns (ProposalId)
+    {
         if (_params.numChoices == 0) revert NoChoices();
-        if (_params.numChoices > type(uint16).max) revert TooManyChoices();
+
+        if (_params.numChoices > MAX_CHOICES) revert TooManyChoices();
+
+        bytes32 proposalHash = keccak256(abi.encode(msg.sender, _params));
+
+        ProposalId proposalId = ProposalId.wrap(proposalHash);
+
         if (proposals[proposalId].active) revert AlreadyExists();
-        Proposal storage proposal = proposals[proposalId];
-        proposal.params = _params;
-        proposal.active = true;
+
+        proposals[proposalId] = Proposal({active: true, params:_params, topChoice:0});
+
         activeProposals.add(proposalHash);
-        ballotBox.createBallot(abi.encode(proposalId, _params));
-        address[] memory a = new address[](1);
-        a[0] = msg.sender;
-        acl.setPollManagers(address(this), proposalId, a);
+
+        Ballot storage ballot = _ballots[proposalId];
+
+        for (uint256 i; i < _params.numChoices; ++i)
+        {
+            ballot.voteCounts[i] = 1 << 255; // gas usage side-channel resistance.
+        }
+
+        acl.onPollCreated(address(this), proposalId, msg.sender);
+
         emit ProposalCreated(proposalId);
+
         return proposalId;
     }
 
-    function getActiveProposals(
-        uint256 _offset,
-        uint256 _count
-    ) external view returns (ProposalWithId[] memory _proposals) {
+    function getActiveProposals(uint256 _offset, uint256 _count)
+        external view
+        returns (ProposalWithId[] memory _proposals)
+    {
         if (_offset + _count > activeProposals.length()) {
             _count = activeProposals.length() - _offset;
         }
+
         _proposals = new ProposalWithId[](_count);
-        for (uint256 i; i < _count; ++i) {
+
+        for (uint256 i; i < _count; ++i)
+        {
             ProposalId id = ProposalId.wrap(activeProposals.at(_offset + i));
+
             _proposals[i] = ProposalWithId({id: id, proposal: proposals[id]});
         }
     }
 
-    function castVote(ProposalId proposalId, uint256 choiceIdBig) external {
+    function castVote(ProposalId proposalId, uint256 choiceIdBig)
+        external
+    {
         require(acl.canVoteOnPoll(address(this), proposalId, msg.sender), "Vote not allowed");
-        return ballotBox.castVote(proposalId, choiceIdBig);
+
+        Proposal storage proposal = proposals[proposalId];
+
+        if (!proposal.active) revert NotActive();
+
+        Ballot storage ballot = _ballots[proposalId];
+
+        uint8 choiceId = uint8(choiceIdBig & 0xff);
+
+        if (choiceId >= proposal.params.numChoices) revert UnknownChoice();
+
+        Choice memory existingVote = ballot.votes[msg.sender];
+
+        // 1 click 1 vote
+        for (uint256 i; i < proposal.params.numChoices; ++i)
+        {
+            // read-modify-write all counts to make it harder to determine which one is chosen.
+            ballot.voteCounts[i] ^= 1 << 255; // flip the top bit to constify gas usage a bit
+            // Arithmetic is not guaranteed to be constant time, so this might still leak the choice to a highly motivated observer.
+            ballot.voteCounts[i] += i == choiceId ? 1 : 0;
+            ballot.voteCounts[i] -= existingVote.exists && existingVote.choice == i
+            ? 1
+            : 0;
+        }
+
+        ballot.votes[msg.sender].exists = true;
+
+        ballot.votes[msg.sender].choice = choiceId;
     }
 
-    function listAllowedPollVoters(ProposalId proposalId) external returns(address[] memory) {
-        require(acl.canManagePoll(address(this), proposalId, msg.sender), "Poll management not allowed");
-        return allowedPollVotersList[keccak256(abi.encode(address(this), proposalId))];
-    }
-
-    function setAllowedPollVoters(ProposalId proposalId, address[] calldata voters) external {
-        require(acl.canManagePoll(address(this), proposalId, msg.sender), "Poll management not allowed");
-        acl.setAllowedPollVoters(address(this), proposalId, voters);
-    }
-
-    function getPastProposals(
-        uint256 _offset,
-        uint256 _count
-    ) external view returns (ProposalWithId[] memory _proposals) {
+    function getPastProposals(uint256 _offset, uint256 _count)
+        external view
+        returns (ProposalWithId[] memory _proposals)
+    {
         if (_offset + _count > pastProposals.length) {
             _count = pastProposals.length - _offset;
         }
+
         _proposals = new ProposalWithId[](_count);
-        for (uint256 i; i < _count; ++i) {
+
+        for (uint256 i; i < _count; ++i)
+        {
             ProposalId id = pastProposals[_offset + i];
+
             _proposals[i] = ProposalWithId({id: id, proposal: proposals[id]});
         }
     }
 
-    function closeProposal(ProposalId proposalId) external payable {
+    function closeProposal(ProposalId proposalId)
+        external
+    {
         require(acl.canManagePoll(address(this), proposalId, msg.sender), "Poll management not allowed");
-        uint256 topChoice = ballotBox.closeBallot(proposalId);
-        proposals[proposalId].topChoice = uint16(topChoice);
+
+        Proposal storage proposal = proposals[proposalId];
+
+        if (!proposal.active) revert NotActive();
+
+        Ballot storage ballot = _ballots[proposalId];
+
+        uint256 topChoice;
+        uint256 topChoiceCount;
+
+        for (uint8 i; i < proposal.params.numChoices; ++i)
+        {
+            uint256 choiceVoteCount = ballot.voteCounts[i] & (type(uint256).max >> 1);
+
+            if (choiceVoteCount > topChoiceCount)
+            {
+                topChoice = i;
+                topChoiceCount = choiceVoteCount;
+            }
+        }
+
+        delete _ballots[proposalId];
+
+        proposals[proposalId].topChoice = uint8(topChoice);
+
         proposals[proposalId].active = false;
+
         activeProposals.remove(ProposalId.unwrap(proposalId));
+
         pastProposals.push(proposalId);
+
         emit ProposalClosed(proposalId, topChoice);
+    }
+
+    function getVoteOf(ProposalId proposalId, address voter)
+        external view
+        returns (Choice memory)
+    {
+        Proposal storage proposal = proposals[proposalId];
+
+        if (!proposal.active) revert NotActive();
+
+        Ballot storage ballot = _ballots[proposalId];
+
+        if (voter == msg.sender) return ballot.votes[msg.sender];
+
+        if (!proposal.params.publishVotes) revert NotPublishingVotes();
+
+        return ballot.votes[voter];
+    }
+
+    function ballotIsActive(ProposalId id)
+        external view
+        returns (bool)
+    {
+        return proposals[id].active;
     }
 }

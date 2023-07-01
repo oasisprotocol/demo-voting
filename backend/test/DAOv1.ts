@@ -1,35 +1,49 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { ProposalParamsStruct } from "../typechain-types/DAOv1";
-import {BigNumber} from "ethers";
+import { DAOv1, ProposalParamsStruct } from "../typechain-types/DAOv1";
+
+const TETS_PROPOSALS: ProposalParamsStruct[] = [
+  {ipfsHash: "abcd123", numChoices: 3, publishVotes: true},
+  {ipfsHash: "abc1234", numChoices: 3, publishVotes: true},
+];
+
+async function addProposals(dao:DAOv1) {
+  for (const p of TETS_PROPOSALS) {
+    await dao.createProposal(p);
+  }
+}
 
 describe("DAOv1", function () {
+  async function deployDaoWithWhitelistACL() {
+    const SimpleWhitelistACLv1_factory = await ethers.getContractFactory("SimpleWhitelistACLv1");
+    const whitelist = await SimpleWhitelistACLv1_factory.deploy();
+    await whitelist.deployed()
+
+    const DAOv1_factory = await ethers.getContractFactory("DAOv1");
+    const dao = await DAOv1_factory.deploy(whitelist.address);
+    await dao.deployed();
+
+    return {dao, whitelist}
+  }
+
   async function deployDaoFixture() {
-    const proposals: ProposalParamsStruct[] = [
-      {ipfsHash: "abcd123", numChoices: 3, publishVotes: true},
-      {ipfsHash: "abc1234", numChoices: 3, publishVotes: true},
-    ];
-
-    const DAOv1 = await ethers.getContractFactory("DAOv1");
-    // XXX: Can we change "0x0..." to null, undefined, address(0) or just have it optional?
-    const dao = await DAOv1.deploy("0x0000000000000000000000000000000000000000");
-
-    return { dao, proposals };
+    const DAOv1_factory = await ethers.getContractFactory("DAOv1");
+    const dao = await DAOv1_factory.deploy("0x0000000000000000000000000000000000000000");
+    await dao.deployed();
+    return { dao };
   }
 
   it("Should create proposals", async function () {
-    const { dao, proposals } = await deployDaoFixture();
+    const { dao } = await deployDaoFixture();
 
-    for (const p of proposals) {
-      await dao.createProposal(p);
-    }
+    await addProposals(dao);
 
-    expect((await dao.getActiveProposals(0, 100)).length).to.equal(proposals.length);
+    expect((await dao.getActiveProposals(0, 100)).length).to.equal(TETS_PROPOSALS.length);
   });
 
   it("Should cast vote proposals", async function () {
-    const { dao, proposals } = await deployDaoFixture();
-    const createProposalTx = (await dao.createProposal(proposals[0]));
+    const { dao } = await deployDaoFixture();
+    const createProposalTx = (await dao.createProposal(TETS_PROPOSALS[0]));
     const createProposalRc = await createProposalTx.wait();
     expect(createProposalRc.events).to.not.be.undefined;
     const createEvent = createProposalRc.events!.find(event => event.event === 'ProposalCreated');
@@ -37,8 +51,11 @@ describe("DAOv1", function () {
     expect(createEvent!.args).to.not.be.undefined;
     const [proposalId] = createEvent!.args!;
 
+    const acl_addr = await dao.acl();
+    const acl = (await ethers.getContractFactory("SimplePollACLv1")).attach(acl_addr);
+
     // Whitelist the voter.
-    await (await dao.setAllowedPollVoters(proposalId, [(await ethers.getSigners())[0].address])).wait();
+    //await (await acl.setAllowedPollVoters(proposalId, [(await ethers.getSigners())[0].address])).wait();
     await (await dao.castVote(proposalId, 2)).wait();
 
     const closeProposalTx = (await dao.closeProposal(proposalId));

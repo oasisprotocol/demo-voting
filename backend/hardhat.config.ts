@@ -41,21 +41,9 @@ task('deploy')
   .setAction(async (args, hre) => {
     await hre.run('compile');
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy();
-    const receipt = await dao.deployed();
+    const dao = await DAOv1.deploy('0x0000000000000000000000000000000000000000');
+    await dao.deployed();
     console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
-    while( true ) {
-      try{
-        const bba = await dao.ballotBox();
-        console.log(`VITE_BALLOT_BOX_V1_ADDR=${bba}`);
-      }
-      catch( e ) {
-        await new Promise(r => setTimeout(r, 2000));
-        console.log('.');
-        continue;
-      }
-      break;
-    }
     return dao;
   });
 
