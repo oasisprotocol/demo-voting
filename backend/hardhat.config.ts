@@ -37,14 +37,58 @@ task(TASK_EXPORT_ABIS, async (_args, hre) => {
   );
 });
 
+// Default DAO deployment, no permissions.
 task('deploy')
   .setAction(async (args, hre) => {
     await hre.run('compile');
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy('0x0000000000000000000000000000000000000000');
+    const dao = await DAOv1.deploy(hre.ethers.constants.AddressZero);
     await dao.deployed();
+
     console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
     return dao;
+});
+
+// DAO deployment using SimpleWhitelistACL.
+task('deploy-simplewhitelist')
+  .setAction(async (args, hre) => {
+    await hre.run('compile');
+    const ACLv1 = await hre.ethers.getContractFactory('SimpleWhitelistACLv1');
+    const acl = await ACLv1.deploy();
+    await acl.deployed();
+    const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
+    const dao = await DAOv1.deploy(acl.address);
+    await dao.deployed();
+
+    console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
+    return dao;
+});
+
+// Whitelist the voters for the poll in DAO using SimpleWhitelistACL.
+// Required env variables:
+// - PRIVATE_KEY: private key of the poll manager
+// - VITE_DAO_V1_ADDR: address of the DAO contract
+// - PROPOSAL_ID: ID of the poll
+// - VOTERS_FILE: path to the file containing eligible voters, one address per line
+task('whitelist-voters')
+  .setAction(async (args, hre) => {
+    await hre.run('compile');
+
+    const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
+    const dao = DAOv1.attach(process.env.VITE_DAO_V1_ADDR!);
+    const signer = new hre.ethers.Wallet(process.env.PRIVATE_KEY!, hre.ethers.provider);
+    const ACLv1 = await hre.ethers.getContractFactory('SimpleWhitelistACLv1');
+    const acl = ACLv1.attach(await dao.acl()).connect(signer);
+
+    let file = await fs.readFile(process.env.VOTERS_FILE!);
+    const addrRaw = file.toString().split("\n");
+    let addresses: string[] = [];
+    for(const i in addrRaw) {
+      if (hre.ethers.utils.isAddress(addrRaw[i])) {
+        addresses.push(addrRaw[i]);
+      }
+    }
+    await (await acl.setEligibleVoters(dao.address, (process.env.PROPOSAL_ID!.startsWith("0x")?"":"0x")+process.env.PROPOSAL_ID!, addresses)).wait();
   });
 
 const accounts = process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [];
@@ -53,16 +97,6 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       chainId: 1337, // @see https://hardhat.org/metamask-issue.html
-    },
-    goerli: {
-      url: 'https://goerli.infura.io/v3/813e377eac3a4e74b1f7262b3b20b3c6',
-      chainId: 5,
-      accounts,
-    },
-    sepolia: {
-      url: 'https://rpc.sepolia.org',
-      chainId: 11155111,
-      accounts,
     },
     'sapphire': {
       url: 'https://sapphire.oasis.io',
