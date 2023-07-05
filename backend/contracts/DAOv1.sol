@@ -20,9 +20,6 @@ contract DAOv1 {
     event ProposalCreated(ProposalId id);
     event ProposalClosed(ProposalId indexed id, uint256 topChoice);
 
-    // --------------------------------------------------------------
-    // Structures
-
     struct Proposal {
         bool active;
         ProposalParams params;
@@ -34,6 +31,11 @@ contract DAOv1 {
         Proposal proposal;
     }
 
+    struct Choice {
+        bool exists;
+        uint8 choice;
+    }
+
     uint256 constant MAX_CHOICES = 32;
 
     struct Ballot {
@@ -43,25 +45,14 @@ contract DAOv1 {
         uint256[MAX_CHOICES] voteCounts;
     }
 
-    struct Choice {
-        bool exists;
-        uint8 choice;
-    }
-
-    // --------------------------------------------------------------
-    // Storage
-
+    // Confidential storage.
     mapping(ProposalId => Ballot) private _ballots;
 
-    mapping(ProposalId => Proposal) public proposals;
-
-    EnumerableSet.Bytes32Set private activeProposals;
-
-    ProposalId[] private pastProposals;
-
+    // Public storage.
     PollACLv1 public immutable acl;
-
-    // --------------------------------------------------------------
+    mapping(ProposalId => Proposal) public proposals;
+    EnumerableSet.Bytes32Set private activeProposals; // NB: Recursive structs cannot be public.
+    ProposalId[] public pastProposals;
 
     constructor(PollACLv1 a) {
         acl = (address(a) == address(0)) ? new AllowAllACLv1() : a;
@@ -72,30 +63,24 @@ contract DAOv1 {
         returns (ProposalId)
     {
         if (_params.numChoices == 0) revert NoChoices();
-
         if (_params.numChoices > MAX_CHOICES) revert TooManyChoices();
+        if (!acl.canCreatePoll(address(this), msg.sender)) revert PollACLv1.PollCreationNotAllowed();
 
         bytes32 proposalHash = keccak256(abi.encode(msg.sender, _params));
-
         ProposalId proposalId = ProposalId.wrap(proposalHash);
-
         if (proposals[proposalId].active) revert AlreadyExists();
 
         proposals[proposalId] = Proposal({active: true, params:_params, topChoice:0});
-
         activeProposals.add(proposalHash);
 
         Ballot storage ballot = _ballots[proposalId];
-
         for (uint256 i; i < _params.numChoices; ++i)
         {
             ballot.voteCounts[i] = 1 << 255; // gas usage side-channel resistance.
         }
 
         acl.onPollCreated(address(this), proposalId, msg.sender);
-
         emit ProposalCreated(proposalId);
-
         return proposalId;
     }
 
@@ -108,11 +93,9 @@ contract DAOv1 {
         }
 
         _proposals = new ProposalWithId[](_count);
-
         for (uint256 i; i < _count; ++i)
         {
             ProposalId id = ProposalId.wrap(activeProposals.at(_offset + i));
-
             _proposals[i] = ProposalWithId({id: id, proposal: proposals[id]});
         }
     }
@@ -120,21 +103,16 @@ contract DAOv1 {
     function castVote(ProposalId proposalId, uint256 choiceIdBig)
         external
     {
-        require(acl.canVoteOnPoll(address(this), proposalId, msg.sender), "Vote not allowed");
+        if (!acl.canVoteOnPoll(address(this), proposalId, msg.sender)) revert PollACLv1.VoteNotAllowed();
 
         Proposal storage proposal = proposals[proposalId];
-
         if (!proposal.active) revert NotActive();
-
         Ballot storage ballot = _ballots[proposalId];
-
         uint8 choiceId = uint8(choiceIdBig & 0xff);
-
         if (choiceId >= proposal.params.numChoices) revert UnknownChoice();
-
         Choice memory existingVote = ballot.votes[msg.sender];
 
-        // 1 click 1 vote
+        // 1 click 1 vote.
         for (uint256 i; i < proposal.params.numChoices; ++i)
         {
             // read-modify-write all counts to make it harder to determine which one is chosen.
@@ -147,7 +125,6 @@ contract DAOv1 {
         }
 
         ballot.votes[msg.sender].exists = true;
-
         ballot.votes[msg.sender].choice = choiceId;
     }
 
@@ -164,7 +141,6 @@ contract DAOv1 {
         for (uint256 i; i < _count; ++i)
         {
             ProposalId id = pastProposals[_offset + i];
-
             _proposals[i] = ProposalWithId({id: id, proposal: proposals[id]});
         }
     }
@@ -172,21 +148,18 @@ contract DAOv1 {
     function closeProposal(ProposalId proposalId)
         external
     {
-        require(acl.canManagePoll(address(this), proposalId, msg.sender), "Poll management not allowed");
+        if (!acl.canManagePoll(address(this), proposalId, msg.sender)) revert PollACLv1.PollManagementNotAllowed();
 
         Proposal storage proposal = proposals[proposalId];
-
         if (!proposal.active) revert NotActive();
 
         Ballot storage ballot = _ballots[proposalId];
 
         uint256 topChoice;
         uint256 topChoiceCount;
-
         for (uint8 i; i < proposal.params.numChoices; ++i)
         {
             uint256 choiceVoteCount = ballot.voteCounts[i] & (type(uint256).max >> 1);
-
             if (choiceVoteCount > topChoiceCount)
             {
                 topChoice = i;
@@ -195,15 +168,10 @@ contract DAOv1 {
         }
 
         delete _ballots[proposalId];
-
         proposals[proposalId].topChoice = uint8(topChoice);
-
         proposals[proposalId].active = false;
-
         activeProposals.remove(ProposalId.unwrap(proposalId));
-
         pastProposals.push(proposalId);
-
         emit ProposalClosed(proposalId, topChoice);
     }
 
@@ -214,13 +182,10 @@ contract DAOv1 {
         Proposal storage proposal = proposals[proposalId];
 
         if (!proposal.active) revert NotActive();
-
         Ballot storage ballot = _ballots[proposalId];
 
         if (voter == msg.sender) return ballot.votes[msg.sender];
-
         if (!proposal.params.publishVotes) revert NotPublishingVotes();
-
         return ballot.votes[voter];
     }
 
