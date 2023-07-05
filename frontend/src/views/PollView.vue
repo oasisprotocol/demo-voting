@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { BigNumber, ethers } from 'ethers';
-import { computed, ref } from 'vue';
+import {computed, reactive, ref} from 'vue';
 import { ContentLoader } from 'vue-content-loader';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import { staticDAOv1, useDAOv1 } from '../contracts';
+import {staticDAOv1, useDAOv1, usePollACLv1} from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 
 const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
 
-const daoV1 = useDAOv1();
+const dao = useDAOv1();
 const eth = useEthereumStore();
 
 const error = ref('');
@@ -22,9 +22,11 @@ const poll = ref<{ proposal: DAOv1.ProposalWithIdStructOutput; ipfsParams: Poll 
 const winningChoice = ref<number | undefined>(undefined);
 const selectedChoice = ref<number | undefined>();
 const existingVote = ref<number | undefined>(undefined);
+let canClosePoll = ref<Boolean>(false);
+let canAclVote = ref<Boolean>(false);
 
 (async () => {
-  const [active, params, topChoice] = await daoV1.value.callStatic.proposals(proposalId);
+  const [active, params, topChoice] = await dao.value.callStatic.proposals(proposalId);
   const proposal = { id: proposalId, active, topChoice, params };
   const ipfsParamsRes = await fetch(`https://w3s.link/ipfs/${params.ipfsHash}`);
   const ipfsParams = await ipfsParamsRes.json();
@@ -33,13 +35,19 @@ const existingVote = ref<number | undefined>(undefined);
   if (!proposal.active) {
     selectedChoice.value = winningChoice.value = proposal.topChoice;
   }
-})();
+
+    const acl = await usePollACLv1();
+    const userAddress = eth.signer?await eth.signer.getAddress():ethers.constants.AddressZero;
+    canClosePoll.value = await acl.value.callStatic.canManagePoll(dao.value.address, proposalId, userAddress);
+    canAclVote.value = await acl.value.callStatic.canVoteOnPoll(dao.value.address, proposalId, userAddress);
+  })();
 
 const canVote = computed(() => {
   if (!eth.address) return false;
   if (winningChoice.value !== undefined) return false;
   if (selectedChoice.value === undefined) return false;
   if (existingVote.value !== undefined) return false;
+  if (canAclVote.value == false) return false;
   return true;
 });
 
@@ -53,7 +61,7 @@ const canSelect = computed(() => {
 async function closeBallot(): Promise<void> {
   await eth.connect();
   await eth.switchNetwork(Network.FromConfig);
-  const tx = await daoV1.value.closeProposal(proposalId);
+  const tx = await dao.value.closeProposal(proposalId);
   const receipt = await tx.wait();
 
   if (receipt.status != 1) throw new Error('close ballot tx failed');
@@ -81,7 +89,7 @@ async function doVote(): Promise<void> {
 
   console.log('casting vote');
   await eth.switchNetwork(Network.FromConfig);
-  const tx = await daoV1.value.castVote(proposalId, choice);
+  const tx = await dao.value.castVote(proposalId, choice);
   const receipt = await tx.wait();
 
   if (receipt.status != 1) throw new Error('cast vote tx failed');
@@ -176,6 +184,7 @@ eth.connect();
       </button>
     </form>
     <button
+      v-if="canClosePoll"
       tabindex="1"
       class="my-3 border-2 border-blue-800 text-gray-100 rounded-md p-2 bg-red-600 disabled:border-gray-500 disabled:text-gray-500 disabled:cursor-default disabled:bg-white transition-colors font-bold text-xl disabled:hidden"
       :disabled="false"

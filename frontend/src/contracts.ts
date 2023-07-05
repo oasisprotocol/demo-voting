@@ -2,8 +2,8 @@ import { ethers } from 'ethers';
 import type { ComputedRef } from 'vue';
 import { computed } from 'vue';
 
-import type { DAOv1 } from '@oasisprotocol/demo-voting-backend';
-import { DAOv1__factory } from '@oasisprotocol/demo-voting-backend';
+import type { DAOv1, PollACLv1 } from '@oasisprotocol/demo-voting-backend';
+import { DAOv1__factory, PollACLv1__factory } from '@oasisprotocol/demo-voting-backend';
 
 import { useEthereumStore } from './stores/ethereum';
 
@@ -23,4 +23,12 @@ export function useDAOv1(): ComputedRef<DAOv1> {
   return computed(() => {
     return DAOv1__factory.connect(addr, eth.signer ?? eth.provider);
   });
+}
+
+export async function usePollACLv1(): Promise<ComputedRef<PollACLv1>> {
+  const eth = useEthereumStore();
+  const dao = useDAOv1().value;
+
+  const ref = PollACLv1__factory.connect(await dao.acl(), eth.signer ?? eth.provider);
+  return computed(() => { return ref });
 }
