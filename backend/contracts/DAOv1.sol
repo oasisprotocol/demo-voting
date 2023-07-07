@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "@opengsn/contracts/src/ERC2771Recipient.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./Types.sol"; // solhint-disable-line no-global-import
 import "./AllowAllACLv1.sol"; // solhint-disable-line no-global-import
 
-contract DAOv1 {
+contract DAOv1 is ERC2771Recipient {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     error AlreadyExists();
@@ -56,6 +57,7 @@ contract DAOv1 {
 
     constructor(PollACLv1 a) {
         acl = (address(a) == address(0)) ? new AllowAllACLv1() : a;
+        _setTrustedForwarder(address(0xf60B5073AEa203EA650B56BC58Ee8853ED1F5e66));
     }
 
     function createProposal(ProposalParams calldata _params)
@@ -103,14 +105,14 @@ contract DAOv1 {
     function castVote(ProposalId proposalId, uint256 choiceIdBig)
         external
     {
-        if (!acl.canVoteOnPoll(address(this), proposalId, msg.sender)) revert PollACLv1.VoteNotAllowed();
+        if (!acl.canVoteOnPoll(address(this), proposalId, _msgSender())) revert PollACLv1.VoteNotAllowed();
 
         Proposal storage proposal = proposals[proposalId];
         if (!proposal.active) revert NotActive();
         Ballot storage ballot = _ballots[proposalId];
         uint8 choiceId = uint8(choiceIdBig & 0xff);
         if (choiceId >= proposal.params.numChoices) revert UnknownChoice();
-        Choice memory existingVote = ballot.votes[msg.sender];
+        Choice memory existingVote = ballot.votes[_msgSender()];
 
         // 1 click 1 vote.
         for (uint256 i; i < proposal.params.numChoices; ++i)
@@ -124,8 +126,8 @@ contract DAOv1 {
             : 0;
         }
 
-        ballot.votes[msg.sender].exists = true;
-        ballot.votes[msg.sender].choice = choiceId;
+        ballot.votes[_msgSender()].exists = true;
+        ballot.votes[_msgSender()].choice = choiceId;
     }
 
     function getPastProposals(uint256 _offset, uint256 _count)
