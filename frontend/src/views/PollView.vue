@@ -1,6 +1,14 @@
 <script setup lang="ts">
+
+import '../polyfill'; // workaround for "XYZ not defined" errors in opengsn provider.
+
 import { BigNumber, ethers } from 'ethers';
+import { RelayProvider } from '@oasislabs/opengsn-provider';
+//import { RelayProvider } from '@opengsn/provider';
 import { computed, onMounted, ref } from 'vue';
+import { ContentLoader } from 'vue-content-loader';
+import Web3 from 'web3';
+//import { wrap } from '@oasisprotocol/sapphire-paratime';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
@@ -101,7 +109,26 @@ async function doVote(): Promise<void> {
 
   console.log('casting vote');
   await eth.switchNetwork(Network.FromConfig);
-  const tx = await dao.value.castVote(proposalId, choice);
+
+  // Set up GSN wrappers. GSN only supports web3, so we need some trickery.
+  const paymasterAddress = "0xF9EDd58DFc9E1cEC59526a67eCfb819306825c9F";
+  const config = {
+    paymasterAddress,
+  };
+
+//  const gsnProvider = await RelayProvider.newProvider({ provider: wrap((window as any).web3.currentProvider), config }).init();
+  const gsnProvider = await RelayProvider.newProvider({ provider: (window as any).web3.currentProvider, config }).init();
+  const web3 = new Web3(gsnProvider);
+
+// Sends the transaction via the GSN
+  const gsnDao = new web3.eth.Contract([{"inputs":[{"internalType":"ProposalId","name":"proposalId","type":"bytes32"},{"internalType":"uint256","name":"choiceIdBig","type":"uint256"}],"name":"castVote","outputs":[],"stateMutability":"nonpayable","type":"function"}], dao.value.address);
+  await gsnDao.methods.castVote(proposalId, choice).send({
+    from: eth.address,
+    gas: 300000,
+    gasPrice: 100000000000,
+  });
+
+/*  const tx = await dao.value.castVote(proposalId, choice);
   const receipt = await tx.wait();
 
   if (receipt.status != 1) throw new Error('cast vote tx failed');
@@ -124,7 +151,7 @@ async function doVote(): Promise<void> {
     console.log('checking if ballot has been closed on BSC');
     hasClosed = !(await staticDAOv1.callStatic.proposals(proposalId)).active;
     await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
+  }*/
 }
 
 onMounted(() => {
