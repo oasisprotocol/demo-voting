@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
-import { staticBallotBox, useDAOv1 } from '../contracts';
+import { useDAOv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import type { Poll } from '../../../functions/api/types';
 
@@ -92,17 +92,16 @@ async function doCreatePoll(): Promise<string> {
     publishVotes: poll.options.publishVotes,
   };
   // TODO: check if proposal already exists on the host chain and continue if so (idempotence)
-  const value = ethers.utils.parseEther('0.005');
-  const proposalId = await dao.value.callStatic.createProposal(proposalParams, { value });
+  const proposalId = await dao.value.callStatic.createProposal(proposalParams);
   console.log('creating proposal');
-  const createProposalTx = await dao.value.createProposal(proposalParams, { value });
+  const createProposalTx = await dao.value.createProposal(proposalParams);
   console.log('creating proposal in', createProposalTx.hash);
   if ((await createProposalTx.wait()).status !== 1)
     throw new Error('createProposal tx receipt reported failure.');
   let isActive = false;
   while (!isActive) {
     console.log('checking if ballot has been created on Sapphire');
-    isActive = await staticBallotBox.callStatic.ballotIsActive(proposalId);
+    isActive = await dao.value.callStatic.ballotIsActive(proposalId);
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   return proposalId.replace('0x', '');

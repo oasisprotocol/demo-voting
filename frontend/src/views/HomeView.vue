@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { ethers } from 'ethers';
+import { reactive, ref } from 'vue';
 import { ContentLoader } from 'vue-content-loader';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import { useDAOv1 } from '../contracts';
+import {useDAOv1, usePollACLv1} from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 
 const eth = useEthereumStore();
@@ -13,6 +14,7 @@ const dao = useDAOv1();
 type FullProposal = DAOv1.ProposalWithIdStructOutput & { params: Poll };
 const activePolls = reactive<Record<string, FullProposal>>({});
 const pastPolls = reactive<Record<string, FullProposal>>({});
+let canCreatePoll = ref<Boolean>(false);
 
 async function fetchProposals(
   fetcher: (offset: number, batchSize: number) => Promise<DAOv1.ProposalWithIdStructOutput[]>,
@@ -43,6 +45,10 @@ async function fetchProposals(
   }
 }
 (async () => {
+  const acl = await usePollACLv1();
+  const userAddress = eth.signer?await eth.signer.getAddress():ethers.constants.AddressZero;
+  canCreatePoll.value = await acl.value.callStatic.canCreatePoll(dao.value.address, userAddress);
+
   const { number: blockTag } = await eth.provider.getBlock('latest');
   fetchProposals(
     (offset, batchSize) =>
@@ -61,7 +67,7 @@ async function fetchProposals(
 
 <template>
   <main style="max-width: 60ch" class="py-5 m-auto w-4/5">
-    <RouterLink
+    <RouterLink v-if="canCreatePoll"
       to="polls"
       class="inline-block border border-blue-800 py-2 px-3 rounded-lg my-3 font-medium text-blue-600"
     >
