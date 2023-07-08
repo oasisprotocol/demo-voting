@@ -6,7 +6,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import "./Types.sol"; // solhint-disable-line no-global-import
 import "./AllowAllACLv1.sol"; // solhint-disable-line no-global-import
 
-contract DAOv1 {
+contract DAOv1 is AcceptsProxyVotes {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     error AlreadyExists();
@@ -54,8 +54,11 @@ contract DAOv1 {
     EnumerableSet.Bytes32Set private activeProposals; // NB: Recursive structs cannot be public.
     ProposalId[] public pastProposals;
 
-    constructor(PollACLv1 a) {
+    address public proxyVoter;
+
+    constructor(PollACLv1 a, address in_proxyVoter) {
         acl = (address(a) == address(0)) ? new AllowAllACLv1() : a;
+        proxyVoter = in_proxyVoter;
     }
 
     function createProposal(ProposalParams calldata _params)
@@ -100,17 +103,28 @@ contract DAOv1 {
         }
     }
 
-    function castVote(ProposalId proposalId, uint256 choiceIdBig)
+    /**
+     * Accept a proxy vote from a trusted forwarding contract
+     */
+    function proxyVote(address voter, ProposalId proposalId, uint256 choiceIdBig)
         external
     {
-        if (!acl.canVoteOnPoll(address(this), proposalId, msg.sender)) revert PollACLv1.VoteNotAllowed();
+        require( msg.sender == proxyVoter );
+
+        _internal_castVote(voter, proposalId, choiceIdBig);
+    }
+
+    function _internal_castVote(address voter, ProposalId proposalId, uint256 choiceIdBig)
+        internal
+    {
+        if (!acl.canVoteOnPoll(address(this), proposalId, voter)) revert PollACLv1.VoteNotAllowed();
 
         Proposal storage proposal = proposals[proposalId];
         if (!proposal.active) revert NotActive();
         Ballot storage ballot = _ballots[proposalId];
         uint8 choiceId = uint8(choiceIdBig & 0xff);
         if (choiceId >= proposal.params.numChoices) revert UnknownChoice();
-        Choice memory existingVote = ballot.votes[msg.sender];
+        Choice memory existingVote = ballot.votes[voter];
 
         // 1 click 1 vote.
         for (uint256 i; i < proposal.params.numChoices; ++i)
@@ -124,8 +138,14 @@ contract DAOv1 {
             : 0;
         }
 
-        ballot.votes[msg.sender].exists = true;
-        ballot.votes[msg.sender].choice = choiceId;
+        ballot.votes[voter].exists = true;
+        ballot.votes[voter].choice = choiceId;
+    }
+
+    function castVote(ProposalId proposalId, uint256 choiceIdBig)
+        external
+    {
+        _internal_castVote(msg.sender, proposalId, choiceIdBig);
     }
 
     function getPastProposals(uint256 _offset, uint256 _count)

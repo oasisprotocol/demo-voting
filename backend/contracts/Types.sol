@@ -8,3 +8,7 @@ struct ProposalParams {
     uint16 numChoices;
     bool publishVotes;
 }
+
+interface AcceptsProxyVotes {
+    function proxyVote(address voter, ProposalId proposalId, uint256 choiceIdBig) external;
+}
