@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {EthereumUtils} from "./sollibs/EthereumUtils.sol";
 import {Sapphire} from "./sollibs/Sapphire.sol";
 import {EIP155Signer} from "./sollibs/EIP155Signer.sol";
-import {ProposalId, AcceptsProxyVotes} from "./Types.sol";
+import {ProposalId, AcceptsProxyVotes, PollACLv1} from "./Types.sol";
 
 struct VotingRequest {
     address voter;
@@ -13,25 +13,27 @@ struct VotingRequest {
 }
 
 contract GaslessVoting {
+    address private immutable OWNER;
+
     bytes32 private signerSecret;
 
     address public signerAddr;
 
     bytes32 immutable private encryptionSecret;
 
-    AcceptsProxyVotes immutable public DAO;
+    AcceptsProxyVotes public DAO;
 
+    // EIP-712 parameters
     bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-
-    string public constant VOTINGREQUEST_TYPE = "VotingRequest(address voter, bytes32 proposalId, uint256 choiceId)";
-
+    string public constant VOTINGREQUEST_TYPE = "VotingRequest(address voter,bytes32 proposalId,uint256 choiceId)";
     bytes32 public constant VOTINGREQUEST_TYPEHASH = keccak256(bytes(VOTINGREQUEST_TYPE));
-
     bytes32 public immutable DOMAIN_SEPARATOR;
 
-    constructor (AcceptsProxyVotes in_dao)
+    constructor (address in_owner)
         payable
     {
+        OWNER = (in_owner == address(0)) ? msg.sender : in_owner;
+
         DOMAIN_SEPARATOR = keccak256(abi.encode(
             EIP712_DOMAIN_TYPEHASH,
             keccak256("DAOv1.GaslessVoting"),
@@ -40,15 +42,42 @@ contract GaslessVoting {
             address(this)
         ));
 
-        DAO = in_dao;
-
+        // Generate an encryption key, it is only used by this contract to encrypt data for itself
         encryptionSecret = bytes32(Sapphire.randomBytes(32, ""));
 
+        // Generate a keypair which will be used to submit transactions to invoke this contract
         (signerAddr, signerSecret) = EthereumUtils.generateKeypair();
 
-        payable(signerAddr).transfer(msg.value);
+        // Forward on any gas money sent while deploying
+        if( msg.value > 0 ) {
+            payable(signerAddr).transfer(msg.value);
+        }
     }
 
+    function setDAO(AcceptsProxyVotes in_dao)
+        external
+    {
+        require( msg.sender == OWNER );
+
+        // Can only be set once
+        require( address(DAO) == address(0) );
+
+        DAO = in_dao;
+    }
+
+    /**
+     * Validate a users voting request, then give them a signed transaction to commit the vote
+     *
+     * The signed transaction invokes `submitEncryptedVote`, which is unmodifiable by the user
+     * and hides all info about what their address is, which ballot they were voting on and
+     * what their vote was.
+     *
+     * @param nonce Account nonce of `signerAddr`
+     * @param gasPrice Which gas price to use when submitting transaction
+     * @param request Voting Request
+     * @param rsv EIP-712 signature for request
+     * @return Signed transaction to submit via eth_sendRawTransaction
+     */
     function makeTransaction(
         uint64 nonce,
         uint256 gasPrice,
@@ -58,6 +87,10 @@ contract GaslessVoting {
         external view
         returns (bytes memory)
     {
+        // User must be able to vote on the poll
+        // so we don't waste gas submitting invalid transactions
+        require( DAO.getACL().canVoteOnPoll(address(DAO), ProposalId.wrap(request.proposalId), request.voter) );
+
         // Validate EIP-712 signed voting request
         bytes32 requestDigest = keccak256(abi.encodePacked(
             "\x19\x01",
@@ -75,27 +108,61 @@ contract GaslessVoting {
         bytes32 ciphertextNonce = keccak256(abi.encodePacked(encryptionSecret, requestDigest));
         bytes memory ciphertext = Sapphire.encrypt(encryptionSecret, ciphertextNonce, abi.encode(request), "");
 
+        // TODO: simulate query to get gas limit? then increase by 20%
+
         // Return signed transaction invoking 'submitEncryptedVote'
-        return EIP155Signer.sign(signerAddr, signerSecret, EIP155Signer.EthTx(
-            nonce,
-            gasPrice,
-            250000,
-            address(this),
-            0,
-            abi.encodeWithSelector(this.submitEncryptedVote.selector, ciphertextNonce, ciphertext),
-            block.chainid
-        ));
+        return EIP155Signer.sign(signerAddr, signerSecret, EIP155Signer.EthTx({
+            nonce: nonce,
+            gasPrice: gasPrice,
+            gasLimit: 250000,
+            to: address(this),
+            value: 0,
+            data: abi.encodeWithSelector(this.submitEncryptedVote.selector, ciphertextNonce, ciphertext),
+            chainId: block.chainid
+        }));
     }
 
     function submitEncryptedVote(bytes32 ciphertextNonce, bytes memory data)
         external
     {
-        require( msg.sender == signerAddr );
+        require( msg.sender == signerAddr, "Cannot Invoke Directly!" );
 
         bytes memory plaintext = Sapphire.decrypt(encryptionSecret, ciphertextNonce, data, "");
 
         VotingRequest memory request = abi.decode(plaintext, (VotingRequest));
 
         DAO.proxyVote(request.voter, ProposalId.wrap(request.proposalId), request.choiceId);
+    }
+
+    /**
+     * Allow the owner to withdraw excess funds from the Signing Account
+     *
+     * TODO: use signed queries?
+     *
+     * @param nonce transaction nonce
+     * @param gasPrice gas price to use when submitting transaction
+     * @param amount amount to withdraw
+     * @param rsv signature R, S & V values
+     * @return transaction signed by Signing Account
+     */
+    function withdraw(uint64 nonce, uint256 gasPrice, uint256 amount, EIP155Signer.SignatureRSV calldata rsv)
+        external view
+        returns (bytes memory transaction)
+    {
+        bytes32 inner_digest = keccak256(abi.encode(address(this), nonce, gasPrice, amount));
+
+        bytes32 digest = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", inner_digest));
+
+        require( OWNER == ecrecover(digest, rsv.v, rsv.r, rsv.s), "Not owner account!" );
+
+        return EIP155Signer.sign(signerAddr, signerSecret, EIP155Signer.EthTx({
+            nonce: nonce,
+            gasPrice: gasPrice,
+            gasLimit: 250000,
+            to: OWNER,
+            value: amount,
+            data: "",
+            chainId: block.chainid
+        }));
     }
 }

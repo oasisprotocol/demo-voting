@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./PollACLv1.sol"; // solhint-disable-line no-global-import
+import "./Types.sol"; // solhint-disable-line no-global-import
 
 // Simple ACL where anyone can create a poll, manage any poll and cast vote.
 // This ACL should be used for TESTING AND DEMONSTRATION PURPOSES ONLY!

@@ -93,10 +93,23 @@ task('whitelist-voters')
 
 const accounts = process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [];
 
+const TEST_HDWALLET = {
+  mnemonic: "test test test test test test test test test test test junk",
+  path: "m/44'/60'/0'/0",
+  initialIndex: 0,
+  count: 20,
+  passphrase: "",
+};
+
 const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       chainId: 1337, // @see https://hardhat.org/metamask-issue.html
+    },
+    sapphire_local: {
+      url: "http://localhost:8545",
+      accounts: TEST_HDWALLET,
+      chainId: 0x5afd,
     },
     'sapphire': {
       url: 'https://sapphire.oasis.io',
@@ -135,7 +148,7 @@ const config: HardhatUserConfig = {
   },
   mocha: {
     require: ['ts-node/register/files'],
-    timeout: 20_000,
+    timeout: 40_000,
   },
 };
 

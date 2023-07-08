@@ -62,10 +62,10 @@ library EIP155Signer {
         ret.v = EthereumUtils.recoverV(pubkey_addr, a_digest, ret.r, ret.s);
     }
 
-    function sign(address pubkey_addr, bytes32 sk, EthTx memory transaction)
+    function sign(address publicAddress, bytes32 secretKey, EthTx memory transaction)
         internal view
         returns (bytes memory)
     {
-        return EIP155Signer.encodeSignedTx(transaction, EIP155Signer.signRawTx(transaction, pubkey_addr, sk));
+        return EIP155Signer.encodeSignedTx(transaction, EIP155Signer.signRawTx(transaction, publicAddress, secretKey));
     }
 }

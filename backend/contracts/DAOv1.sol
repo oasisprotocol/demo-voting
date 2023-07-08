@@ -61,6 +61,13 @@ contract DAOv1 is AcceptsProxyVotes {
         proxyVoter = in_proxyVoter;
     }
 
+    function getACL()
+        external view
+        returns (PollACLv1)
+    {
+        return acl;
+    }
+
     function createProposal(ProposalParams calldata _params)
         external
         returns (ProposalId)
