@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { BigNumber, ethers } from 'ethers';
-import {computed, reactive, ref} from 'vue';
+import { ethers } from 'ethers';
+import { computed, ref } from 'vue';
 import { ContentLoader } from 'vue-content-loader';
 
 import type { Poll } from '../../../functions/api/types';
-import type { DAOv1 } from '../contracts';
-import {staticDAOv1, useDAOv1, usePollACLv1} from '../contracts';
+import type { DAOv1 } from '@oasisprotocol/demo-voting-backend';
+import { useDAOv1, usePollACLv1, useGasslessVoting } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 
 const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
 
 const dao = useDAOv1();
+const gaslessVoting = await useGasslessVoting();
 const eth = useEthereumStore();
 
 const error = ref('');
@@ -36,11 +37,13 @@ let canAclVote = ref<Boolean>(false);
     selectedChoice.value = winningChoice.value = proposal.topChoice;
   }
 
-    const acl = await usePollACLv1();
-    const userAddress = eth.signer?await eth.signer.getAddress():ethers.constants.AddressZero;
-    canClosePoll.value = await acl.value.callStatic.canManagePoll(dao.value.address, proposalId, userAddress);
-    canAclVote.value = await acl.value.callStatic.canVoteOnPoll(dao.value.address, proposalId, userAddress);
-  })();
+  //const acl = await usePollACLv1();
+  //const userAddress = eth.signer?await eth.signer.getAddress():ethers.constants.AddressZero;
+  //canClosePoll.value = await acl.value.callStatic.canManagePoll(dao.value.address, proposalId, userAddress);
+  //canAclVote.value = await acl.value.callStatic.canVoteOnPoll(dao.value.address, proposalId, userAddress);
+  canAclVote.value = true;
+  canClosePoll.value = true;
+})();
 
 const canVote = computed(() => {
   if (!eth.address) return false;
@@ -83,19 +86,67 @@ async function vote(e: Event): Promise<void> {
 async function doVote(): Promise<void> {
   await eth.connect();
 
-  if (selectedChoice.value === undefined) throw new Error('no choice selected');
+  if (selectedChoice.value === undefined) {
+    throw new Error('no choice selected');
+  }
 
   const choice = selectedChoice.value;
 
   console.log('casting vote');
   await eth.switchNetwork(Network.FromConfig);
-  const tx = await dao.value.castVote(proposalId, choice);
-  const receipt = await tx.wait();
 
-  if (receipt.status != 1) throw new Error('cast vote tx failed');
+  let receipt : ethers.ContractReceipt;
+  if( gaslessVoting.value === undefined ) {
+    const tx = await dao.value.castVote(proposalId, choice);
+    receipt = await tx.wait();
+  }
+  else {
+    const gv = gaslessVoting.value;
+    const request = {
+        voter: await gv.signer.getAddress(),
+        proposalId: proposalId,
+        choiceId: choice
+    };
+
+    if( ! eth.signer ) {
+      throw new Error('No signer!');
+    }
+
+    // Sign voting request
+    const signature = await eth.signer._signTypedData({
+      name: "DAOv1.GaslessVoting",
+      version: "1",
+      chainId: await gv.getChainId(),
+      verifyingContract: gv.address
+    }, {
+      VotingRequest: [
+        { name: 'voter', type: "address" },
+        { name: 'proposalId', type: 'bytes32' },
+        { name: 'choiceId', type: 'uint256' }
+      ]
+    }, request);
+    const rsv = ethers.utils.splitSignature(signature);
+
+    // Submit voting request to get signed transaction
+    const nonce = await gv.provider.getTransactionCount(await gv.signerAddr());
+    const gasPrice = await gv.provider.getGasPrice();
+    const tx = await gv.makeTransaction(nonce, gasPrice, request, rsv);
+
+    // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
+    let plain_resp = await eth.unwrappedProvider.sendTransaction(tx);
+    receipt = await gv.provider.waitForTransaction(plain_resp.hash)
+  }
+
+  if (receipt.status != 1) {
+    // TODO: decode revert error
+    throw new Error('cast vote tx failed');
+  }
+
   existingVote.value = choice;
 
   // Check if the ballot has closed by examining the events (logs).
+  // XXX: the 'castVote' function doesn't emit BallotClosed!
+  /*
   let topChoice = undefined;
   for (const event of receipt.events ?? []) {
     if (
@@ -107,12 +158,17 @@ async function doVote(): Promise<void> {
   }
   if (topChoice === undefined) return;
   winningChoice.value = topChoice;
+  */
+
+  // XXX: we should refresh the list of polls periodically instead of doing this loop!
+  /*
   let hasClosed = false;
   while (!hasClosed) {
     console.log('checking if ballot has been closed on BSC');
     hasClosed = !(await staticDAOv1.callStatic.proposals(proposalId)).active;
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 10000));
   }
+  */
 }
 
 eth.connect();

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {EthereumUtils} from "./sollibs/EthereumUtils.sol";
 import {Sapphire} from "./sollibs/Sapphire.sol";
 import {EIP155Signer} from "./sollibs/EIP155Signer.sol";
-import {ProposalId, AcceptsProxyVotes, PollACLv1} from "./Types.sol";
+import {ERC165, ProposalId, AcceptsProxyVotes, PollACLv1} from "./Types.sol";
 
 struct VotingRequest {
     address voter;
@@ -12,7 +12,7 @@ struct VotingRequest {
     uint256 choiceId;
 }
 
-contract GaslessVoting {
+contract GaslessVoting is ERC165 {
     address private immutable OWNER;
 
     bytes32 private signerSecret;
@@ -54,6 +54,14 @@ contract GaslessVoting {
         }
     }
 
+    function supportsInterface(bytes4 interfaceID)
+        external pure
+        returns (bool)
+    {
+        return interfaceID == 0x01ffc9a7 // ERC-165
+            || interfaceID == this.makeTransaction.selector;
+    }
+
     function setDAO(AcceptsProxyVotes in_dao)
         external
     {
@@ -63,6 +71,13 @@ contract GaslessVoting {
         require( address(DAO) == address(0) );
 
         DAO = in_dao;
+    }
+
+    function getChainId()
+        external view
+        returns (uint256)
+    {
+        return block.chainid;
     }
 
     /**

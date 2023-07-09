@@ -41,8 +41,13 @@ task(TASK_EXPORT_ABIS, async (_args, hre) => {
 task('deploy')
   .setAction(async (args, hre) => {
     await hre.run('compile');
+
+    const GaslessVoting_factory = await hre.ethers.getContractFactory('GaslessVoting');
+    const gv = await GaslessVoting_factory.deploy(hre.ethers.constants.AddressZero, {value: hre.ethers.utils.parseEther('1')});
+    await gv.deployed();
+
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy(hre.ethers.constants.AddressZero);
+    const dao = await DAOv1.deploy(hre.ethers.constants.AddressZero, gv.address);
     await dao.deployed();
 
     console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
@@ -57,7 +62,7 @@ task('deploy-simplewhitelist')
     const acl = await ACLv1.deploy();
     await acl.deployed();
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy(acl.address);
+    const dao = await DAOv1.deploy(acl.address, hre.ethers.constants.AddressZero);
     await dao.deployed();
 
     console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
