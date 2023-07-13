@@ -1,25 +1,30 @@
 <script setup lang="ts">
 import { ethers } from 'ethers';
-import { reactive, ref } from 'vue';
-import { ContentLoader } from 'vue-content-loader';
+import { onMounted, ref, shallowRef } from 'vue';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import {useDAOv1, usePollACLv1} from '../contracts';
+import { useDAOv1, usePollACLv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
+import AppButton from '@/components/AppButton.vue';
+import AppPoll from '@/components/AppPoll.vue';
+import PollLoader from '@/components/PollLoader.vue';
 
 const eth = useEthereumStore();
 const dao = useDAOv1();
 
 type FullProposal = DAOv1.ProposalWithIdStructOutput & { params: Poll };
-const activePolls = reactive<Record<string, FullProposal>>({});
-const pastPolls = reactive<Record<string, FullProposal>>({});
-let canCreatePoll = ref<Boolean>(false);
+const activePolls = shallowRef<Record<string, FullProposal>>({});
+const pastPolls = shallowRef<Record<string, FullProposal>>({});
+const canCreatePoll = ref<Boolean>(false);
+const isLoadingActive = ref<Boolean>(true);
+const isLoadingPast = ref<Boolean>(true);
 
 async function fetchProposals(
   fetcher: (offset: number, batchSize: number) => Promise<DAOv1.ProposalWithIdStructOutput[]>,
-  destination: Record<string, FullProposal>,
-): Promise<void> {
+): Promise<Record<string, FullProposal>> {
+  const proposalsMap: Record<string, FullProposal> = {};
+
   await eth.switchNetwork(Network.FromConfig);
   const batchSize = 100;
   for (let offset = 0; ; offset += batchSize) {
@@ -30,94 +35,118 @@ async function fetchProposals(
       console.error('failed to fetch proposals', e);
       break;
     }
-    proposals.forEach(async ({ id, proposal }) => {
-      const ipfsHash = proposal.params.ipfsHash;
-      id = id.slice(2);
-      try {
-        const ipfsParamsRes = await fetch(`https://w3s.link/ipfs/${ipfsHash}`);
-        const params: Poll = await ipfsParamsRes.json();
-        destination[id] = { id, params, proposal } as any;
-      } catch (e) {
-        console.error('failed to fetch proposal params from IPFS', e);
-      }
-    });
-    if (proposals.length < batchSize) return;
+    await Promise.all(
+      proposals.map(({ id, proposal }) => {
+        const ipfsHash = proposal.params.ipfsHash;
+        id = id.slice(2);
+
+        return fetch(`https://w3s.link/ipfs/${ipfsHash}`)
+          .then((res) => res.json())
+          .then((params) => {
+            proposalsMap[id] = { id, params, proposal } as FullProposal;
+          })
+          .catch((e) => console.error('failed to fetch proposal params from IPFS', e));
+      }),
+    );
+
+    if (proposals.length < batchSize) return proposalsMap;
   }
+
+  return proposalsMap;
 }
-(async () => {
+
+onMounted(async () => {
   const acl = await usePollACLv1();
-  const userAddress = eth.signer?await eth.signer.getAddress():ethers.constants.AddressZero;
+  const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
   canCreatePoll.value = await acl.value.callStatic.canCreatePoll(dao.value.address, userAddress);
 
   const { number: blockTag } = await eth.provider.getBlock('latest');
-  fetchProposals(
-    (offset, batchSize) =>
+
+  await Promise.all([
+    fetchProposals((offset, batchSize) =>
       dao.value.callStatic.getActiveProposals(offset, batchSize, {
         blockTag,
       }),
-    activePolls,
-  );
-  fetchProposals((offset, batchSize) => {
-    return dao.value.callStatic.getPastProposals(offset, batchSize, {
-      blockTag,
-    });
-  }, pastPolls);
-})();
+    ).then((proposalsMap) => {
+      activePolls.value = { ...proposalsMap };
+      isLoadingActive.value = false;
+    }),
+    fetchProposals((offset, batchSize) => {
+      return dao.value.callStatic.getPastProposals(offset, batchSize, {
+        blockTag,
+      });
+    }).then((proposalsMap) => {
+      pastPolls.value = { ...proposalsMap };
+      isLoadingPast.value = false;
+    }),
+  ]);
+});
 </script>
 
 <template>
-  <main style="max-width: 60ch" class="py-5 m-auto w-4/5">
-    <RouterLink v-if="canCreatePoll"
-      to="polls"
-      class="inline-block border border-blue-800 py-2 px-3 rounded-lg my-3 font-medium text-blue-600"
+  <section class="pt-5">
+    <h2 class="capitalize text-white text-2xl font-bold mb-4">Poll overview</h2>
+    <p class="text-white text-base mb-20">Bellow is your overview of your active and past pools</p>
+
+    <div v-if="canCreatePoll" class="flex justify-end mb-6">
+      <RouterLink to="polls">
+        <AppButton variant="secondary">&plus;&nbsp;&nbsp;Create a new poll</AppButton>
+      </RouterLink>
+    </div>
+
+    <h2 class="capitalize text-white text-2xl font-bold mb-6">Active pools</h2>
+
+    <div v-if="!isLoadingActive">
+      <AppPoll
+        v-for="[pollId, poll] in Object.entries(activePolls)"
+        :key="pollId"
+        :poll-id="pollId"
+        :name="poll.params.name"
+        :description="poll.params.description"
+        :creator-address="poll.params.creator"
+        active
+      />
+    </div>
+    <div v-else>
+      <PollLoader />
+      <PollLoader />
+      <PollLoader />
+    </div>
+
+    <p
+      v-if="!isLoadingActive && Object.keys(activePolls).length <= 0"
+      class="text-white text-center mb-6 font-normal"
     >
-      New Poll
-    </RouterLink>
-    <section>
-      <h2>Active Polls</h2>
-      <ol v-if="Object.keys(activePolls).length > 0" class="table-auto">
-        <li
-          class="border-black border-2 rounded-sm my-5 flex"
-          v-for="[pollId, poll] in Object.entries(activePolls)"
-          :key="pollId"
-          :id="pollId"
-        >
-          <RouterLink :to="{ name: 'poll', params: { id: pollId } }">
-            <p class="flex-1 py-4 px-8">
-              <span class="font-bold">Name:</span> {{ poll.params.name }}<br />
-              <span class="font-bold">Description:</span> {{ poll.params.description }}<br />
-              <span class="font-bold">Creator:</span> {{ poll.params.creator?.replace('0x', '') }}
-            </p>
-          </RouterLink>
-        </li>
-      </ol>
-      <ContentLoader v-else class="inline" width="1" height="1">
-        <rect x="0" y="0" rx="3" ry="3" width="5" height="5" />
-      </ContentLoader>
-      <h2>Past Polls</h2>
-      <ol v-if="Object.keys(pastPolls).length > 0" class="table-auto">
-        <li
-          class="border-black border-2 rounded-sm my-5 flex"
-          v-for="[pollId, poll] in Object.entries(pastPolls)"
-          :id="pollId"
-          :key="pollId"
-        >
-          <RouterLink :to="{ name: 'poll', params: { id: pollId } }">
-            <p class="flex-1 py-4 px-8">
-              <span class="font-bold">Name:</span> {{ poll.params.name }}<br />
-              <span class="font-bold">Description:</span> {{ poll.params.description }}<br />
-              <span class="font-bold">Creator:</span> {{ poll.params.creator?.replace('0x', '') }}
-              <span class="font-bold">Outcome:</span>
-              {{ poll.params.choices[poll.proposal.topChoice] }}
-            </p>
-          </RouterLink>
-        </li>
-      </ol>
-      <ContentLoader v-else class="inline" width="1" height="1">
-        <rect x="0" y="0" rx="3" ry="3" width="5" height="5" />
-      </ContentLoader>
-    </section>
-  </main>
+      You currently have no active pools
+    </p>
+
+    <h2 class="capitalize text-white text-2xl font-bold mb-6">Past pools</h2>
+
+    <div v-if="!isLoadingPast">
+      <AppPoll
+        v-for="[pollId, poll] in Object.entries(pastPolls)"
+        :key="pollId"
+        :poll-id="pollId"
+        :name="poll.params.name"
+        :description="poll.params.description"
+        :creator-address="poll.params.creator"
+        :choices="poll.params.choices"
+        :outcome="poll.proposal.topChoice"
+      />
+    </div>
+    <div v-else>
+      <PollLoader />
+      <PollLoader />
+      <PollLoader />
+    </div>
+
+    <p
+      v-if="!isLoadingPast && Object.keys(pastPolls).length <= 0"
+      class="text-white text-center font-normal"
+    >
+      You currently have no past pools
+    </p>
+  </section>
 </template>
 
 <style scoped lang="postcss">
@@ -126,7 +155,7 @@ form {
 }
 
 input {
-  @apply block my-4 p-1 mx-auto text-3xl text-center border border-gray-400 rounded-md;
+  @apply block my-4 p-1 mx-auto text-3xl text-center border border-gray-400 rounded-xl;
 }
 
 h2 {

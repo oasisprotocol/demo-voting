@@ -3,16 +3,10 @@ import { computed, ref } from 'vue';
 
 import { Network, networkName, useEthereumStore } from '../stores/ethereum';
 import JazzIcon from './JazzIcon.vue';
+import { abbrAddr } from '@/utils/utils';
 
 const eth = useEthereumStore();
 
-const iconsize = 30;
-
-const abbrAddr = computed(() => {
-  if (!eth.address) return;
-  const addr = eth.address.replace('0x', '');
-  return `${addr.slice(0, 5)}…${addr.slice(-5)}`;
-});
 const netName = computed(() => networkName(eth.network));
 const unkNet = computed(() => eth.network === Network.Unknown);
 
@@ -34,43 +28,38 @@ async function connectWallet() {
 </script>
 
 <template>
-  <button class="v-align" :class="{ 'cursor-default': !!eth.address }" @click="connectWallet">
-    <div class="v-align" v-if="!connecting && eth.address">
-      <JazzIcon :size="iconsize" :address="eth.address" />
-      <div class="text-xs leading-none ml-1">
-        <abbr :title="eth.address" class="font-mono block no-underline">{{ abbrAddr }}</abbr>
-        <span class="text-2xs" :class="{ 'unk-net': unkNet }">{{ netName }}</span>
-      </div>
-    </div>
-    <div class="v-align" v-else>
-      <div class="empty-icon"></div>
-      <span class="ml-1 text-sm">
+  <div :class="{ 'cursor-default': !!eth.address }" class="account-picker" @click="connectWallet">
+    <span class="account-picker-content" v-if="!connecting && eth.address">
+      <JazzIcon :size="60" :address="eth.address" />
+      <span class="font-mono font-bold">
+        <abbr :title="eth.address" class="block no-underline">{{
+          abbrAddr(eth.address)
+        }}</abbr>
+        <span class="font-normal" :class="{ 'unk-net': unkNet }">{{ netName }}</span>
+      </span>
+    </span>
+    <span class="account-picker-content" v-else>
+      <span>
         <span v-if="showingConnecting">Connecting…</span>
         <span v-else>Connect Wallet</span>
       </span>
-    </div>
-  </button>
+    </span>
+  </div>
 </template>
 
 <style lang="postcss" scoped>
-.v-align {
-  @apply inline-flex items-center;
+.account-picker-content {
+  @apply inline-flex items-center gap-6;
 }
 
-.empty-icon {
-  --icon-size: 30px;
-  @apply border border-gray-900;
+.account-picker {
+  @apply inline-flex items-center border rounded-xl bg-white p-4 border-primaryDark;
+  border-width: 3px;
+  border-style: solid;
+}
 
-  width: var(--icon-size);
-  height: var(--icon-size);
-  border-radius: 100%;
-  display: inline-block;
-
-  &::after {
-    position: relative;
-    line-height: var(--icon-size);
-    content: '👋';
-  }
+span {
+  @apply text-xl text-primaryDark text-right;
 }
 
 .unk-net {

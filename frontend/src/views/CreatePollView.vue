@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ethers } from 'ethers';
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
 
 import { useDAOv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import type { Poll } from '../../../functions/api/types';
+import AppButton from '@/components/AppButton.vue';
+import RemoveIcon from '@/components/RemoveIcon.vue';
+import AddIcon from '@/components/AddIcon.vue';
+import SuccessInfo from '@/components/SuccessInfo.vue';
 
-const router = useRouter();
 const eth = useEthereumStore();
 const dao = useDAOv1();
 
@@ -36,7 +37,8 @@ const pollName = ref('');
 const pollDesc = ref('');
 const choices = ref<Array<{ key: number; value: string }>>([]);
 const publishVotes = ref(false);
-const creating = ref(false);
+const isLoading = ref(false);
+const proposalId = ref('');
 
 let choiceCount = 0; // a monotonic counter for use as :key
 const removeChoice = (i: number) => choices.value.splice(i, 1);
@@ -56,15 +58,15 @@ async function createPoll(e: Event): Promise<void> {
   e.preventDefault();
   try {
     errors.value.splice(0, errors.value.length);
-    creating.value = true;
-    const proposalId = await doCreatePoll();
-    if (!proposalId) return;
-    router.push({ name: 'poll', params: { id: proposalId } });
+    isLoading.value = true;
+    proposalId.value = await doCreatePoll();
+    // if (!proposalId) return;
+    // router.push({ name: 'poll', params: { id: proposalId } });
   } catch (e: any) {
     errors.value.push(`Failed to create poll: ${e.message ?? JSON.stringify(e)}`);
     console.error(e);
   } finally {
-    creating.value = false;
+    isLoading.value = false;
   }
 }
 
@@ -109,83 +111,145 @@ async function doCreatePoll(): Promise<string> {
 </script>
 
 <template>
-  <main style="max-width: 60ch" class="py-5 m-auto w-4/5">
-    <h2>New Poll</h2>
+  <section v-if="!proposalId">
+    <h2 class="capitalize text-white text-2xl font-bold mb-4">New pool</h2>
+    <p class="text-white text-base mb-20">
+      Create your new poll by filling out the fields below. Once created, your poll will be live
+      immediately and responses will start being recorded.
+    </p>
+
     <form @submit="createPoll">
-      <fieldset>
-        <legend>Name</legend>
-        <input class="w-3/4" type="text" v-model="pollName" required />
-      </fieldset>
-      <fieldset>
-        <legend>Description</legend>
-        <textarea class="p-2 bg-transparent w-full h-full" v-model="pollDesc" required />
-      </fieldset>
-      <fieldset>
-        <legend>Choices</legend>
-        <ol class="ml-8 list-decimal">
-          <li class="choice-item" v-for="(choice, i) in choices" :key="choice.key">
-            <input type="text" required v-model="choices[i].value" />
-            <button
-              v-if="choices.length > 1"
-              class="inline-block text-lg text-gray-500 pl-1"
-              :data-ix="i"
-              @click.prevent="removeChoice(i)"
-            >
-              Ⓧ
-            </button>
-          </li>
-        </ol>
-        <button class="underline ml-3 my-2 text-gray-700" @click.prevent="addChoice">
-          ＋Add choice
-        </button>
-      </fieldset>
-      <fieldset>
-        <legend>Additional Options</legend>
-        <ul class="px-3">
-          <li class="my-3">
-            <input id="publish-votes" type="checkbox" v-model="publishVotes" />
-            <label class="inline-block mx-3" for="publish-votes"
-              >Publish individual votes after voting has ended.</label
-            >
-          </li>
-        </ul>
-      </fieldset>
-      <div v-if="errors.length > 0" class="text-red-500 px-3 mt-5 rounded-sm">
+      <div class="form-group">
+        <input type="text" id="question" class="peer" placeholder=" " v-model="pollName" required />
+        <label
+          for="question"
+          class="peer-focus:text-primaryDark peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-5"
+        >
+          Question
+          <span class="text-red-500">*</span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <textarea id="description" class="peer" placeholder=" " v-model="pollDesc" rows="3" />
+        <label
+          for="description"
+          class="peer-focus:text-primaryDark peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-5"
+        >
+          Description
+        </label>
+      </div>
+
+      <div class="form-group-answers">
+        <label class="inline-block mb-5"
+          >Answers
+          <span class="text-red-500">*</span>
+        </label>
+        <div
+          class="relative flex justify-between items-center mb-4 gap-3 px-5"
+          v-for="(choice, i) in choices"
+          :key="choice.key"
+        >
+          <input
+            class="focus:outline-none focus:ring-0 pb-2 text-primaryDark"
+            type="text"
+            id="name"
+            :placeholder="`${i + 1}. Answer`"
+            v-model="choices[i].value"
+            required
+          />
+
+          <RemoveIcon
+            class="cursor-pointer absolute right-5 bottom-2"
+            :class="{
+              'cursor-default': isLoading,
+            }"
+            :disabled="isLoading"
+            v-if="choices.length > 2"
+            :data-ix="i"
+            @click.prevent="removeChoice(i)"
+          ></RemoveIcon>
+        </div>
+        <AppButton
+          class="ml-5"
+          size="small"
+          variant="tertiary"
+          :disabled="isLoading"
+          @click.prevent="addChoice"
+        >
+          <span class="flex gap-2">
+            <AddIcon />
+            <span class="leading-6">Add answer</span>
+          </span>
+        </AppButton>
+      </div>
+
+      <div class="form-group-answers">
+        <label class="inline-block mb-5">Additional options</label>
+        <div class="flex pl-4">
+          <input
+            id="publish-votes"
+            class="w-5 h-5 border-2 border-gray-500"
+            type="checkbox"
+            v-model="publishVotes"
+          />
+          <label class="ml-3 text-base text-gray-900" for="publish-votes">
+            Publish individual votes after voting has ended.
+          </label>
+        </div>
+      </div>
+
+      <AppButton type="submit" variant="primary" :disabled="isLoading">
+        <span v-if="isLoading">Creating…</span>
+        <span v-else>Create Poll</span>
+      </AppButton>
+
+      <div v-if="errors.length > 0" class="text-red-500 px-3 mt-5 rounded-xl-sm">
         <span class="font-bold">Errors:</span>
         <ul class="list-disc px-8">
           <li v-for="error in errors" :key="error">{{ error }}</li>
         </ul>
       </div>
-      <button
-        class="my-3 border-2 border-blue-700 text-blue-900 rounded-md p-2"
-        :disabled="creating"
-      >
-        <span v-if="creating">Creating…</span>
-        <span v-else>Create Poll</span>
-      </button>
     </form>
-  </main>
+  </section>
+  <section v-else>
+    <SuccessInfo>
+      <h3 class="text-white text-3xl mb-4">Success</h3>
+      <p class="text-white text-base">Your poll is live.</p>
+      <p class="text-white text-base mb-24">Votes will be recorded from now on.</p>
+
+      <RouterLink :to="{ name: 'poll', params: { id: proposalId } }">
+        <AppButton variant="secondary">View poll</AppButton>
+      </RouterLink>
+    </SuccessInfo>
+  </section>
 </template>
 
 <style scoped lang="postcss">
-.choice-item:first-of-type {
-  @apply mt-0;
+.form-group,
+.form-group-answers {
+  @apply relative mb-6;
 }
 
-input[type='text'] {
-  @apply inline-block text-lg mx-3 bg-transparent;
-  border-bottom: 1px solid black;
+.form-group input,
+textarea {
+  @apply block rounded-xl py-6 px-5 w-full text-base text-black appearance-none focus:outline-none focus:ring-0 bg-white;
 }
 
-fieldset {
-  @apply border-2 p-4 border-gray-800 rounded-sm bg-transparent my-6;
+.form-group label {
+  @apply absolute text-base text-primaryDark duration-300 transform -translate-y-5 scale-75 top-6 z-10 origin-[0] left-5;
 }
 
-legend {
-  @apply px-1 font-medium;
+.form-group-answers {
+  @apply block rounded-xl py-6 px-5 w-full appearance-none focus:outline-none focus:ring-0 bg-white;
 }
 
-h2 {
-  @apply font-bold text-2xl my-2;
+.form-group-answers > label {
+  @apply text-base text-primaryDark;
+}
+
+.form-group-answers input:not([type='checkbox']) {
+  @apply w-full;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.42);
 }
 </style>
