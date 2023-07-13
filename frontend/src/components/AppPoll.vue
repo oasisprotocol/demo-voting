@@ -25,8 +25,7 @@
           class="choice-btn mb-2 pointer-events-none cursor-not-allowed"
           :key="choice"
           variant="choice"
-          @click="selectedChoice = choiceId"
-          :disabled="winningChoice !== undefined && choiceId !== winningChoice"
+          :disabled="choiceId !== outcome"
         >
           {{ choice }}
         </AppButton>
@@ -47,7 +46,7 @@ defineProps<{
   name: string;
   description: string;
   choices?: string[];
-  outcome?: string;
+  outcome?: number;
   active?: boolean;
 }>();
 </script>

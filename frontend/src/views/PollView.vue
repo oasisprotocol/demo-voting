@@ -18,9 +18,9 @@ const eth = useEthereumStore();
 
 const error = ref('');
 const isTransacting = ref(false);
-const poll = ref<{ proposal: DAOv1.ProposalWithIdStructOutput; ipfsParams: Poll } | undefined>(
-  undefined,
-);
+const poll = ref<DAOv1.ProposalWithIdStructOutput & {ipfsParams: Poll}
+  | undefined
+>(undefined);
 const winningChoice = ref<number | undefined>(undefined);
 const selectedChoice = ref<number | undefined>();
 const existingVote = ref<number | undefined>(undefined);
@@ -129,7 +129,10 @@ eth.connect();
 </script>
 
 <template>
-  <div v-if="poll?.proposal?.active & canClosePoll" class="flex justify-end fixed bottom-10 left-1/2 -translate-x-1/2">
+  <div
+    v-if="!!poll?.proposal?.active && canClosePoll"
+    class="flex justify-end fixed bottom-10 left-1/2 -translate-x-1/2"
+  >
     <AppButton variant="danger" @click="closeBallot">Close Ballot</AppButton>
   </div>
 
@@ -164,12 +167,19 @@ eth.connect();
             :key="choice"
             variant="choice"
             @click="selectedChoice = choiceId"
-            :disabled="(winningChoice !== undefined && choiceId !== winningChoice)"
+            :disabled="!canSelect && winningChoice !== undefined && choiceId !== winningChoice"
           >
             {{ choice }}
           </AppButton>
         </div>
-        <AppButton v-if="poll.proposal.active" type="submit" variant="secondary" class="mt-2 w-full" :disabled="!canVote || isTransacting" @click="vote">
+        <AppButton
+          v-if="poll?.proposal?.active"
+          type="submit"
+          variant="secondary"
+          class="mt-2 w-full"
+          :disabled="!canVote || isTransacting"
+          @click="vote"
+        >
           <span v-if="isTransacting">Pushing…</span>
           <span v-else-if="!isTransacting">Vote</span>
         </AppButton>
