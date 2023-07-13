@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ethers } from 'ethers';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useDAOv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import type { Poll } from '../../../functions/api/types';
+import AppButton from '@/components/AppButton.vue';
 
 const router = useRouter();
 const eth = useEthereumStore();
@@ -109,83 +109,83 @@ async function doCreatePoll(): Promise<string> {
 </script>
 
 <template>
-  <main style="max-width: 60ch" class="py-5 m-auto w-4/5">
-    <h2>New Poll</h2>
-    <form @submit="createPoll">
-      <fieldset>
-        <legend>Name</legend>
-        <input class="w-3/4" type="text" v-model="pollName" required />
-      </fieldset>
-      <fieldset>
-        <legend>Description</legend>
-        <textarea class="p-2 bg-transparent w-full h-full" v-model="pollDesc" required />
-      </fieldset>
-      <fieldset>
-        <legend>Choices</legend>
-        <ol class="ml-8 list-decimal">
-          <li class="choice-item" v-for="(choice, i) in choices" :key="choice.key">
-            <input type="text" required v-model="choices[i].value" />
-            <button
-              v-if="choices.length > 1"
-              class="inline-block text-lg text-gray-500 pl-1"
-              :data-ix="i"
-              @click.prevent="removeChoice(i)"
-            >
-              Ⓧ
-            </button>
-          </li>
-        </ol>
-        <button class="underline ml-3 my-2 text-gray-700" @click.prevent="addChoice">
-          ＋Add choice
-        </button>
-      </fieldset>
-      <fieldset>
-        <legend>Additional Options</legend>
-        <ul class="px-3">
-          <li class="my-3">
-            <input id="publish-votes" type="checkbox" v-model="publishVotes" />
-            <label class="inline-block mx-3" for="publish-votes"
-              >Publish individual votes after voting has ended.</label
-            >
-          </li>
-        </ul>
-      </fieldset>
-      <div v-if="errors.length > 0" class="text-red-500 px-3 mt-5 rounded-sm">
-        <span class="font-bold">Errors:</span>
-        <ul class="list-disc px-8">
-          <li v-for="error in errors" :key="error">{{ error }}</li>
-        </ul>
-      </div>
-      <button
-        class="my-3 border-2 border-blue-700 text-blue-900 rounded-md p-2"
-        :disabled="creating"
+  <h2 class="text-lg lg:text-2xl text-center mb-1">Create a new poll</h2>
+
+  <form @submit="createPoll">
+    <div class="mb-4">
+      <label for="name" class="block mb-2 text-sm font-medium text-gray-900">Name</label>
+      <input type="text" id="name" placeholder="Name" v-model="pollName" required />
+    </div>
+
+    <div class="mb-4">
+      <label for="description" class="block mb-2 text-sm font-medium text-gray-900"
+        >Description</label
       >
-        <span v-if="creating">Creating…</span>
-        <span v-else>Create Poll</span>
-      </button>
-    </form>
-  </main>
+      <textarea id="description" placeholder="Description" v-model="pollDesc" required />
+    </div>
+
+    <div class="mb-4">
+      <label class="block mb-2 text-sm font-medium text-gray-900">Choices</label>
+      <div
+        class="flex justify-between items-center mb-4 gap-3"
+        v-for="(choice, i) in choices"
+        :key="choice.key"
+      >
+        <input
+          type="text"
+          id="name"
+          :placeholder="`${i + 1}. Choice`"
+          v-model="choices[i].value"
+          required
+        />
+
+        <AppButton
+          size="small"
+          variant="danger"
+          :disabled="creating"
+          v-if="choices.length > 2"
+          :data-ix="i"
+          @click.prevent="removeChoice(i)"
+        >
+          &times;
+        </AppButton>
+      </div>
+      <AppButton
+        class="mt-0"
+        size="small"
+        variant="tertiary"
+        :disabled="creating"
+        @click.prevent="addChoice"
+      >
+        Add choice
+      </AppButton>
+    </div>
+
+    <div class="mb-4">
+      <label class="block mb-2 text-sm font-medium text-gray-900">Additional Options</label>
+      <input id="publish-votes" type="checkbox" v-model="publishVotes" />
+      <label class="ml-3 text-sm text-gray-500" for="publish-votes">
+        Publish individual votes after voting has ended.
+      </label>
+    </div>
+
+    <AppButton type="submit" variant="secondary" :disabled="creating">
+      <span v-if="creating">Creating…</span>
+      <span v-else>Create Poll</span>
+    </AppButton>
+
+    <div v-if="errors.length > 0" class="text-red-500 px-3 mt-5 rounded-sm">
+      <span class="font-bold">Errors:</span>
+      <ul class="list-disc px-8">
+        <li v-for="error in errors" :key="error">{{ error }}</li>
+      </ul>
+    </div>
+  </form>
 </template>
 
 <style scoped lang="postcss">
-.choice-item:first-of-type {
-  @apply mt-0;
-}
-
-input[type='text'] {
-  @apply inline-block text-lg mx-3 bg-transparent;
-  border-bottom: 1px solid black;
-}
-
-fieldset {
-  @apply border-2 p-4 border-gray-800 rounded-sm bg-transparent my-6;
-}
-
-legend {
-  @apply px-1 font-medium;
-}
-
-h2 {
-  @apply font-bold text-2xl my-2;
+input:not([type='checkbox']),
+textarea {
+  @apply shadow-sm bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-gray-600 focus:border-gray-600 block w-full p-2;
 }
 </style>

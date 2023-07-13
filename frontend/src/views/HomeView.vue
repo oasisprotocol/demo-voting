@@ -5,8 +5,10 @@ import { ContentLoader } from 'vue-content-loader';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import {useDAOv1, usePollACLv1} from '../contracts';
+import { useDAOv1, usePollACLv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
+import AppButton from '@/components/AppButton.vue';
+import AppPoll from '@/components/AppPoll.vue';
 
 const eth = useEthereumStore();
 const dao = useDAOv1();
@@ -44,9 +46,10 @@ async function fetchProposals(
     if (proposals.length < batchSize) return;
   }
 }
+
 (async () => {
   const acl = await usePollACLv1();
-  const userAddress = eth.signer?await eth.signer.getAddress():ethers.constants.AddressZero;
+  const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
   canCreatePoll.value = await acl.value.callStatic.canCreatePoll(dao.value.address, userAddress);
 
   const { number: blockTag } = await eth.provider.getBlock('latest');
@@ -66,58 +69,38 @@ async function fetchProposals(
 </script>
 
 <template>
-  <main style="max-width: 60ch" class="py-5 m-auto w-4/5">
-    <RouterLink v-if="canCreatePoll"
-      to="polls"
-      class="inline-block border border-blue-800 py-2 px-3 rounded-lg my-3 font-medium text-blue-600"
-    >
-      New Poll
-    </RouterLink>
-    <section>
-      <h2>Active Polls</h2>
-      <ol v-if="Object.keys(activePolls).length > 0" class="table-auto">
-        <li
-          class="border-black border-2 rounded-sm my-5 flex"
-          v-for="[pollId, poll] in Object.entries(activePolls)"
-          :key="pollId"
-          :id="pollId"
-        >
-          <RouterLink :to="{ name: 'poll', params: { id: pollId } }">
-            <p class="flex-1 py-4 px-8">
-              <span class="font-bold">Name:</span> {{ poll.params.name }}<br />
-              <span class="font-bold">Description:</span> {{ poll.params.description }}<br />
-              <span class="font-bold">Creator:</span> {{ poll.params.creator?.replace('0x', '') }}
-            </p>
-          </RouterLink>
-        </li>
-      </ol>
-      <ContentLoader v-else class="inline" width="1" height="1">
-        <rect x="0" y="0" rx="3" ry="3" width="5" height="5" />
-      </ContentLoader>
-      <h2>Past Polls</h2>
-      <ol v-if="Object.keys(pastPolls).length > 0" class="table-auto">
-        <li
-          class="border-black border-2 rounded-sm my-5 flex"
-          v-for="[pollId, poll] in Object.entries(pastPolls)"
-          :id="pollId"
-          :key="pollId"
-        >
-          <RouterLink :to="{ name: 'poll', params: { id: pollId } }">
-            <p class="flex-1 py-4 px-8">
-              <span class="font-bold">Name:</span> {{ poll.params.name }}<br />
-              <span class="font-bold">Description:</span> {{ poll.params.description }}<br />
-              <span class="font-bold">Creator:</span> {{ poll.params.creator?.replace('0x', '') }}
-              <span class="font-bold">Outcome:</span>
-              {{ poll.params.choices[poll.proposal.topChoice] }}
-            </p>
-          </RouterLink>
-        </li>
-      </ol>
-      <ContentLoader v-else class="inline" width="1" height="1">
-        <rect x="0" y="0" rx="3" ry="3" width="5" height="5" />
-      </ContentLoader>
-    </section>
-  </main>
+  <RouterLink class="fixed bottom-10 left-1/2 -translate-x-1/2" v-if="canCreatePoll" to="polls">
+    <AppButton variant="secondary">Add a new Poll</AppButton>
+  </RouterLink>
+  <section
+    class="pt-5"
+    v-if="Object.keys(activePolls).length > 0 || Object.keys(pastPolls).length > 0"
+  >
+    <AppPoll
+      v-for="[pollId, poll] in Object.entries(activePolls)"
+      :key="pollId"
+      :poll-id="pollId"
+      :name="poll.params.name"
+      :description="poll.params.description"
+      :creator-address="poll.params.creator"
+      active
+    />
+    <AppPoll
+      v-for="[pollId, poll] in Object.entries(pastPolls)"
+      :key="pollId"
+      :poll-id="pollId"
+      :name="poll.params.name"
+      :description="poll.params.description"
+      :creator-address="poll.params.creator"
+      :choices="poll.params.choices"
+      :outcome="poll.proposal.topChoice"
+    />
+  </section>
+  <section v-else>
+    <ContentLoader class="inline" width="1" height="1">
+      <rect x="0" y="0" rx="3" ry="3" width="5" height="5" />
+    </ContentLoader>
+  </section>
 </template>
 
 <style scoped lang="postcss">

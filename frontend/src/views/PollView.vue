@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { BigNumber, ethers } from 'ethers';
-import {computed, reactive, ref} from 'vue';
+import { computed, ref } from 'vue';
 import { ContentLoader } from 'vue-content-loader';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import {staticDAOv1, useDAOv1, usePollACLv1} from '../contracts';
+import { staticDAOv1, useDAOv1, usePollACLv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
+import AppButton from '@/components/AppButton.vue';
+import AppBadge from '@/components/AppBadge.vue';
 
 const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
@@ -36,11 +38,19 @@ let canAclVote = ref<Boolean>(false);
     selectedChoice.value = winningChoice.value = proposal.topChoice;
   }
 
-    const acl = await usePollACLv1();
-    const userAddress = eth.signer?await eth.signer.getAddress():ethers.constants.AddressZero;
-    canClosePoll.value = await acl.value.callStatic.canManagePoll(dao.value.address, proposalId, userAddress);
-    canAclVote.value = await acl.value.callStatic.canVoteOnPoll(dao.value.address, proposalId, userAddress);
-  })();
+  const acl = await usePollACLv1();
+  const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
+  canClosePoll.value = await acl.value.callStatic.canManagePoll(
+    dao.value.address,
+    proposalId,
+    userAddress,
+  );
+  canAclVote.value = await acl.value.callStatic.canVoteOnPoll(
+    dao.value.address,
+    proposalId,
+    userAddress,
+  );
+})();
 
 const canVote = computed(() => {
   if (!eth.address) return false;
@@ -119,93 +129,74 @@ eth.connect();
 </script>
 
 <template>
-  <main style="max-width: 60ch" class="p-5 m-auto">
-    <h1 class="font-medium text-3xl mb-4">
-      <ContentLoader v-if="!poll?.ipfsParams.name" width="30" height="3">
-        <rect x="0" y="0.1em" rx="3" ry="3" width="30ch" height="1.3em" />
-      </ContentLoader>
-      <span v-else>{{ poll.ipfsParams.name }}</span>
-    </h1>
-    <p v-if="poll" class="text-gray-500 mb-10" style="height: 3em">
+  <div v-if="poll?.proposal?.active & canClosePoll" class="flex justify-end fixed bottom-10 left-1/2 -translate-x-1/2">
+    <AppButton variant="danger" @click="closeBallot">Close Ballot</AppButton>
+  </div>
+
+  <div v-if="poll">
+    <div class="flex justify-between items-center mb-4">
+      <h1 class="text-2lg lg:text-3xl">
+        {{ poll.ipfsParams.name }}
+      </h1>
+      <AppBadge :variant="poll.proposal.active ? 'active' : 'closed'">
+        {{ poll.proposal.active ? 'Active' : 'Closed' }}
+      </AppBadge>
+    </div>
+    <p class="text-gray-600 mb-10">
       {{ poll.ipfsParams.description }}
     </p>
-    <ContentLoader v-else width="60" height="6">
-      <rect x="0" y="0.1em" rx="3" ry="3" width="50ch" height="1.1em" />
-      <rect x="0" y="1.4em" rx="3" ry="3" width="45ch" height="1.1em" />
-      <rect x="0" y="2.7em" rx="3" ry="3" width="47ch" height="1.1em" />
-      <rect x="0" y="4.0em" rx="3" ry="3" width="28ch" height="1.1em" />
-    </ContentLoader>
-    <h2 class="text-lg font-medium underline">Choices</h2>
-    <p v-if="poll?.ipfsParams.options.publishVotes" class="text-orange-600 my-2">
-      Votes will be made public after voting has ended.
-    </p>
-    <form @submit="vote">
-      <ul v-if="poll?.ipfsParams.choices">
-        <li
-          class="choice-input"
-          v-for="(choice, choiceId) in poll.ipfsParams.choices"
-          :key="choiceId"
-          :class="{
-            selected: selectedChoice === choiceId,
-            won: choiceId === winningChoice,
-            lost: winningChoice !== undefined && choiceId !== winningChoice,
-          }"
-        >
-          <label class="inline-block py-6 px-3 pr-4 w-full">
-            <input
-              tabindex="1"
-              name="choice"
-              :value="choiceId"
-              type="radio"
-              :disabled="!canSelect"
-              v-model="selectedChoice"
-            />
-            <span class="inline-block ml-2">{{ choice }}</span>
-          </label>
-        </li>
-      </ul>
-      <ContentLoader v-else width="50" height="6">
-        <rect x="0" y="0.1em" rx="3" ry="3" width="26ch" height="1.1em" />
-        <rect x="0" y="1.4em" rx="3" ry="3" width="33ch" height="1.1em" />
-        <rect x="0" y="2.7em" rx="3" ry="3" width="37ch" height="1.1em" />
-        <rect x="0" y="4.0em" rx="3" ry="3" width="10ch" height="1.1em" />
-      </ContentLoader>
-      <p v-if="error" class="error my-2">
-        <span class="font-bold">Error:</span>&nbsp;<span>{{ error.replace('Error: ', '') }}</span>
+    <div class="rounded border-2 border-gray-300 p-3">
+      <h2 class="text-lg text-center text-gray-700 mb-2">
+        {{ poll.proposal.active ? 'Cast your vote' : 'Outcome' }}
+      </h2>
+      <p v-if="poll?.ipfsParams.options.publishVotes" class="text-orange-600 my-2">
+        Votes will be made public after voting has ended.
       </p>
-      <button
-        tabindex="1"
-        class="my-3 border-2 border-blue-800 text-gray-100 rounded-md p-2 bg-blue-600 disabled:border-gray-500 disabled:text-gray-500 disabled:cursor-default disabled:bg-white transition-colors font-bold text-xl disabled:hidden"
-        :disabled="!canVote || isTransacting"
-        @click="vote"
-      >
-        <span v-if="isTransacting">Pushing…</span>
-        <span v-else-if="!isTransacting">Vote</span>
-      </button>
-    </form>
-    <button
-      v-if="canClosePoll"
-      tabindex="1"
-      class="my-3 border-2 border-blue-800 text-gray-100 rounded-md p-2 bg-red-600 disabled:border-gray-500 disabled:text-gray-500 disabled:cursor-default disabled:bg-white transition-colors font-bold text-xl disabled:hidden"
-      :disabled="false"
-      @click="closeBallot"
-    >
-      <span>Close Ballot</span>
-    </button>
-  </main>
+      <form @submit="vote">
+        <div v-if="poll?.ipfsParams.choices">
+          <AppButton
+            :class="{
+              selected: selectedChoice === choiceId || choiceId === winningChoice,
+              'pointer-events-none': isTransacting || !poll.proposal.active,
+            }"
+            class="choice-btn mb-2"
+            v-for="(choice, choiceId) in poll.ipfsParams.choices"
+            :key="choice"
+            variant="choice"
+            @click="selectedChoice = choiceId"
+            :disabled="(winningChoice !== undefined && choiceId !== winningChoice)"
+          >
+            {{ choice }}
+          </AppButton>
+        </div>
+        <AppButton v-if="poll.proposal.active" type="submit" variant="secondary" class="mt-2 w-full" :disabled="!canVote || isTransacting" @click="vote">
+          <span v-if="isTransacting">Pushing…</span>
+          <span v-else-if="!isTransacting">Vote</span>
+        </AppButton>
+        <p v-if="error" class="error mt-2 text-center">
+          <span class="font-bold">{{ error }}</span>
+        </p>
+      </form>
+    </div>
+  </div>
+  <ContentLoader v-else width="50" height="6">
+    <rect x="0" y="0.1em" rx="3" ry="3" width="26ch" height="1.1em" />
+    <rect x="0" y="1.4em" rx="3" ry="3" width="33ch" height="1.1em" />
+    <rect x="0" y="2.7em" rx="3" ry="3" width="37ch" height="1.1em" />
+    <rect x="0" y="4.0em" rx="3" ry="3" width="10ch" height="1.1em" />
+  </ContentLoader>
 </template>
 
 <style lang="postcss" scoped>
-.choice-input {
-  @apply my-4 border-2 border-black rounded-sm;
+.choice-btn:not(.selected) {
+  @apply border-gray-300 text-gray-300;
 }
-.choice-input:not(.lost).selected {
-  @apply bg-gradient-to-b from-secondary to-secondary via-transparent;
+
+.choice-btn:hover {
+  @apply text-gray-600 border-gray-600;
 }
-.choice-input.won {
-  @apply bg-secondary;
-}
-.choice-input * {
-  cursor: pointer;
+
+.error {
+  @apply text-red-500;
 }
 </style>
