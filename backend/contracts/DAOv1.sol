@@ -4,9 +4,10 @@ pragma solidity ^0.8.0;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./Types.sol"; // solhint-disable-line no-global-import
+import {IERC165} from "./IERC165.sol"; // solhint-disable-line no-global-import
 import "./AllowAllACLv1.sol"; // solhint-disable-line no-global-import
 
-contract DAOv1 {
+contract DAOv1 is IERC165, AcceptsProxyVotes {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     error AlreadyExists();
@@ -47,15 +48,32 @@ contract DAOv1 {
 
     // Confidential storage.
     mapping(ProposalId => Ballot) private _ballots;
+    address private proxyVoter;
+    PollACLv1 private immutable acl;
 
     // Public storage.
-    PollACLv1 public immutable acl;
     mapping(ProposalId => Proposal) public proposals;
     EnumerableSet.Bytes32Set private activeProposals; // NB: Recursive structs cannot be public.
     ProposalId[] public pastProposals;
 
     constructor(PollACLv1 a) {
         acl = (address(a) == address(0)) ? new AllowAllACLv1() : a;
+    }
+
+    function supportsInterface(bytes4 interfaceID)
+        external pure
+        returns (bool)
+    {
+        return interfaceID == 0x01ffc9a7                // ERC-165
+            || interfaceID == this.castVote.selector
+            || interfaceID == this.proxyVote.selector;  // AcceptsProxyVotes
+    }
+
+    function getACL()
+        external view
+        returns (PollACLv1)
+    {
+        return acl;
     }
 
     function createProposal(ProposalParams calldata _params)
@@ -100,17 +118,17 @@ contract DAOv1 {
         }
     }
 
-    function castVote(ProposalId proposalId, uint256 choiceIdBig)
-        external
+    function internal_castVote(address voter, ProposalId proposalId, uint256 choiceIdBig)
+        internal
     {
-        if (!acl.canVoteOnPoll(address(this), proposalId, msg.sender)) revert PollACLv1.VoteNotAllowed();
+        if (!acl.canVoteOnPoll(address(this), proposalId, voter)) revert PollACLv1.VoteNotAllowed();
 
         Proposal storage proposal = proposals[proposalId];
         if (!proposal.active) revert NotActive();
         Ballot storage ballot = _ballots[proposalId];
         uint8 choiceId = uint8(choiceIdBig & 0xff);
         if (choiceId >= proposal.params.numChoices) revert UnknownChoice();
-        Choice memory existingVote = ballot.votes[msg.sender];
+        Choice memory existingVote = ballot.votes[voter];
 
         // 1 click 1 vote.
         for (uint256 i; i < proposal.params.numChoices; ++i)
@@ -124,8 +142,27 @@ contract DAOv1 {
             : 0;
         }
 
-        ballot.votes[msg.sender].exists = true;
-        ballot.votes[msg.sender].choice = choiceId;
+        ballot.votes[voter].exists = true;
+        ballot.votes[voter].choice = choiceId;
+    }
+
+    /**
+     * Allow the designated proxy voting contract to vote on behalf of a voter
+     */
+    function proxyVote(address voter, ProposalId proposalId, uint256 choiceIdBig)
+        external
+    {
+        require( msg.sender != address(0) );
+
+        require( msg.sender == proxyVoter, "Cannot call proxyVote directly" );
+
+        internal_castVote(voter, proposalId, choiceIdBig);
+    }
+
+    function castVote(ProposalId proposalId, uint256 choiceIdBig)
+        external
+    {
+        internal_castVote(msg.sender, proposalId, choiceIdBig);
     }
 
     function getPastProposals(uint256 _offset, uint256 _count)

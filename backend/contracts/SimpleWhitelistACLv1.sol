@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./PollACLv1.sol"; // solhint-disable-line no-global-import
+import {PollACLv1, ProposalId} from "./Types.sol"; // solhint-disable-line no-global-import
 
 // Simple whitelist ACL where:
 // - anyone can create a poll
