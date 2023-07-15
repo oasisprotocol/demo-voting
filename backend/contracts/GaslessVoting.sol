@@ -6,7 +6,7 @@ import {EthereumUtils} from '@oasisprotocol/sapphire-contracts/contracts/Ethereu
 
 import {EIP155Signer} from "./EIP155Signer.sol";
 import {IERC165} from "./IERC165.sol";
-import {PollACLv1, ProposalId, AcceptsProxyVotes} from "./Types.sol";
+import {PollACLv1, ProposalId, AcceptsProxyVotes, ProposalParams} from "./Types.sol";
 
 struct VotingRequest {
     address voter;
@@ -29,6 +29,8 @@ contract GaslessVoting is IERC165 {
     bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     string public constant VOTINGREQUEST_TYPE = "VotingRequest(address voter,bytes32 proposalId,uint256 choiceId)";
     bytes32 public constant VOTINGREQUEST_TYPEHASH = keccak256(bytes(VOTINGREQUEST_TYPE));
+    string public constant CREATEPROPOSAL_TYPE = "CreateProposal(address creator,string ipfsHash,uint16 numChoices,bool publishVotes)";
+    bytes32 public constant CREATEPROPOSAL_TYPEHASH = keccak256(bytes(CREATEPROPOSAL_TYPE));
     bytes32 public immutable DOMAIN_SEPARATOR;
 
     constructor (address in_owner)
@@ -61,7 +63,7 @@ contract GaslessVoting is IERC165 {
         returns (bool)
     {
         return interfaceID == 0x01ffc9a7 // ERC-165
-            || interfaceID == this.makeTransaction.selector;
+            || interfaceID == this.makeVoteTransaction.selector;
     }
 
     function setDAO(AcceptsProxyVotes in_dao)
@@ -95,7 +97,7 @@ contract GaslessVoting is IERC165 {
      * @param rsv EIP-712 signature for request
      * @return Signed transaction to submit via eth_sendRawTransaction
      */
-    function makeTransaction(
+    function makeVoteTransaction(
         uint64 nonce,
         uint256 gasPrice,
         VotingRequest calldata request,
@@ -149,6 +151,61 @@ contract GaslessVoting is IERC165 {
         VotingRequest memory request = abi.decode(plaintext, (VotingRequest));
 
         DAO.proxyVote(request.voter, ProposalId.wrap(request.proposalId), request.choiceId);
+    }
+
+    function makeProposalTransaction(
+        uint64 nonce,
+        uint256 gasPrice,
+        address creator,
+        ProposalParams calldata request,
+        EIP155Signer.SignatureRSV calldata rsv
+    )
+        external view
+        returns (bytes memory)
+    {
+        require( DAO.getACL().canCreatePoll(address(DAO), creator), "ACL disallows poll creation" );
+
+        bytes32 requestDigest = keccak256(abi.encodePacked(
+            "\x19\x01",
+            DOMAIN_SEPARATOR,
+            keccak256(abi.encode(
+                CREATEPROPOSAL_TYPEHASH,
+                creator,
+                keccak256(abi.encodePacked(request.ipfsHash)),
+                request.numChoices,
+                request.publishVotes
+            ))
+        ));
+        require( creator == ecrecover(requestDigest, rsv.v, rsv.r, rsv.s), "Invalid Request!" );
+
+        // Encrypt request to authenticate it when we're invoked again
+        bytes32 ciphertextNonce = keccak256(abi.encodePacked(encryptionSecret, requestDigest));
+        bytes memory ciphertext = Sapphire.encrypt(encryptionSecret, ciphertextNonce, abi.encode(request), "");
+
+        // TODO: simulate query to get gas limit? then increase by 20%
+
+        // Return signed transaction invoking 'submitEncryptedVote'
+        return EIP155Signer.sign(signerAddr, signerSecret, EIP155Signer.EthTx({
+            nonce: nonce,
+            gasPrice: gasPrice,
+            gasLimit: 1000000,
+            to: address(this),
+            value: 0,
+            data: abi.encodeWithSelector(this.submitEncryptedCreate.selector, ciphertextNonce, ciphertext),
+            chainId: block.chainid
+        }));
+    }
+
+    function submitEncryptedCreate(bytes32 ciphertextNonce, bytes memory data)
+        external
+    {
+        require( msg.sender == signerAddr, "Cannot Invoke Directly!" );
+
+        bytes memory plaintext = Sapphire.decrypt(encryptionSecret, ciphertextNonce, data, "");
+
+        ProposalParams memory request = abi.decode(plaintext, (ProposalParams));
+
+        DAO.createProposal(request);
     }
 
     /**

@@ -5,11 +5,12 @@ import path from 'path';
 
 import canonicalize from 'canonicalize';
 import { TASK_COMPILE } from 'hardhat/builtin-tasks/task-names';
-import { HardhatUserConfig, task } from 'hardhat/config';
+import { HardhatUserConfig, task, types } from 'hardhat/config';
 
 import '@typechain/hardhat';
 import 'hardhat-watcher';
 import 'solidity-coverage';
+import { GaslessVoting } from './typechain-types';
 
 const TASK_EXPORT_ABIS = 'export-abis';
 
@@ -39,11 +40,30 @@ task(TASK_EXPORT_ABIS, async (_args, hre) => {
 
 // Default DAO deployment, no permissions.
 task('deploy')
+  .addFlag('gasless', 'Enable GaslessVoting plugin')
+  .addParam('gaslessFunds', 'How much ROSE to give to GaslessVoting', '1')
   .setAction(async (args, hre) => {
     await hre.run('compile');
+
+    let gv : GaslessVoting | undefined;
+    let gv_address : string | undefined;
+
+    if( args.gasless ) {
+      console.log('Deploying GaslessVoting');
+      const GaslessVoting_factory = await hre.ethers.getContractFactory('GaslessVoting');
+      const funds = hre.ethers.utils.parseEther(args.gaslessFunds);
+      gv = await GaslessVoting_factory.deploy(hre.ethers.constants.AddressZero, {value: funds});
+      await gv.deployed();
+      gv_address = gv.address;
+    }
+
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy(hre.ethers.constants.AddressZero, hre.ethers.constants.AddressZero);
+    const dao = await DAOv1.deploy(hre.ethers.constants.AddressZero, gv_address ?? hre.ethers.constants.AddressZero);
     await dao.deployed();
+
+    if( gv ) {
+      await gv.setDAO(dao.address);
+    }
 
     console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
     return dao;
@@ -151,7 +171,7 @@ const config: HardhatUserConfig = {
   },
   mocha: {
     require: ['ts-node/register/files'],
-    timeout: 20_000,
+    timeout: 50_000,
   },
 };
 

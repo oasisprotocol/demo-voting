@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { ethers } from 'ethers';
 
-import { useDAOv1 } from '../contracts';
+import { useDAOv1, useGaslessVoting } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import type { Poll } from '../../../functions/api/types';
 import AppButton from '@/components/AppButton.vue';
@@ -11,6 +12,7 @@ import SuccessInfo from '@/components/SuccessInfo.vue';
 
 const eth = useEthereumStore();
 const dao = useDAOv1();
+const gaslessVoting = useGaslessVoting();
 
 const pinBody = async (jwt: string, poll: Poll) => {
   const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
@@ -74,6 +76,7 @@ async function doCreatePoll(): Promise<string> {
   await eth.connect();
   await eth.switchNetwork(Network.FromConfig);
   if (errors.value.length > 0) return '';
+
   const poll: Poll = {
     creator: eth.address!,
     name: pollName.value,
@@ -88,25 +91,89 @@ async function doCreatePoll(): Promise<string> {
   const resJson = await res.json();
   if (res.status !== 201) throw new Error(resJson.error);
   const ipfsHash = resJson.ipfsHash;
+
   const proposalParams = {
     ipfsHash,
     numChoices: choices.value.length,
     publishVotes: poll.options.publishVotes,
   };
-  // TODO: check if proposal already exists on the host chain and continue if so (idempotence)
-  const proposalId = await dao.value.callStatic.createProposal(proposalParams);
-  console.log('creating proposal');
-  const createProposalTx = await dao.value.createProposal(proposalParams);
-  console.log('creating proposal in', createProposalTx.hash);
-  if ((await createProposalTx.wait()).status !== 1)
-    throw new Error('createProposal tx receipt reported failure.');
+
+  let proposalId : string;
+
+  const gv = (await gaslessVoting).value;
+  if( gv ) {
+    console.log('doCreatePoll: Using GaslessVoting to create proposal');
+
+    if( ! eth.signer ) {
+      throw new Error('No signer!');
+    }
+
+    const creator = await eth.signer.getAddress();
+
+    // Sign Proposal
+    const signature = await eth.signer._signTypedData({
+      name: "DAOv1.GaslessVoting",
+      version: "1",
+      chainId: await gv.getChainId(),
+      verifyingContract: gv.address
+    }, {
+      CreateProposal: [
+        { name: 'creator', type: "address" },
+        { name: 'ipfsHash', type: 'string' },
+        { name: 'numChoices', type: 'uint16' },
+        { name: 'publishVotes', type: 'bool' }
+      ]
+    }, {
+      creator: creator,
+      ipfsHash: proposalParams.ipfsHash,
+      numChoices: proposalParams.numChoices,
+      publishVotes: proposalParams.publishVotes
+    });
+    const rsv = ethers.utils.splitSignature(signature);
+
+    // Make the pre-signed transaction
+    const nonce = await gv.provider.getTransactionCount(await gv.signerAddr());
+    const gasPrice = await gv.provider.getGasPrice();
+    console.log('doCreatePoll: using nonce', nonce, 'gasPrice', gasPrice);
+    const tx = await gv.makeProposalTransaction(nonce, gasPrice, creator, proposalParams, rsv);
+    console.log('doCreatePoll: Made Gasless CreateProposal Transaction', tx);
+
+    // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
+    let plain_resp = await eth.unwrappedProvider.sendTransaction(tx);
+    console.log('doCreatePoll: waiting for tx', plain_resp.hash);
+    const receipt = await gv.provider.waitForTransaction(plain_resp.hash);
+    console.log('x ' + JSON.stringify(receipt));
+    if (receipt.status !== 1) {
+      throw new Error('doCreatePoll: tx receipt reported failure.');
+    }
+
+    proposalId = receipt.logs[0].data;
+  }
+  else {
+    console.log('doCreatePoll: Using direct transaction to create proposal');
+
+    // TODO: check if proposal already exists on the host chain and continue if so (idempotence)
+    proposalId = await dao.value.callStatic.createProposal(proposalParams);
+    console.log('doCreatePoll: creating proposal', proposalId);
+
+    // If Gasless Voting isn't supported, submit transaction directly
+    const createProposalTx = await dao.value.createProposal(proposalParams);
+    console.log('doCreatePoll: creating proposal tx', createProposalTx.hash);
+    const receipt = await createProposalTx.wait();
+    if (receipt.status !== 1) {
+      throw new Error('createProposal tx receipt reported failure.');
+    }
+  }
+
+  console.log('doCreatePoll: Proposal ID', proposalId);
+
   let isActive = false;
   while (!isActive) {
-    console.log('checking if ballot has been created on Sapphire');
-    isActive = await dao.value.callStatic.ballotIsActive(proposalId);
+    console.log('doCreatePoll: checking if ballot has been created on Sapphire', proposalId);
+    isActive = await dao.value.callStatic.ballotIsActive(proposalId!);
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  return proposalId.replace('0x', '');
+  return proposalId!.replace('0x', '');
 }
 </script>
 

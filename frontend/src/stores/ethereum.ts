@@ -14,6 +14,7 @@ export enum Network {
   EmeraldMainnet = 0xa516,
   SapphireTestnet = 0x5aff,
   SapphireMainnet = 0x5afe,
+  SapphireLocalnet = 0x5afd,
   Local = 1337,
 
   FromConfig = BigNumber.from(import.meta.env.VITE_NETWORK).toNumber(),
@@ -37,14 +38,19 @@ export function networkName(network?: Network): string {
   if (network === Network.EmeraldMainnet) return 'Emerald Mainnet';
   if (network === Network.SapphireTestnet) return 'Sapphire Testnet';
   if (network === Network.SapphireMainnet) return 'Sapphire Mainnet';
+  if (network === Network.SapphireLocalnet) return 'Sapphire Localnet';
   if (network === Network.BscMainnet) return 'BSC';
   if (network === Network.BscTestnet) return 'BSC Testnet';
   return 'Unknown Network';
 }
 
 export const useEthereumStore = defineStore('ethereum', () => {
-  const signer = shallowRef<ethers.Signer | undefined>(undefined);
+  const signer = shallowRef<ethers.providers.JsonRpcSigner | undefined>(undefined);
+  const unwrappedSigner = shallowRef<ethers.providers.JsonRpcSigner | undefined>(undefined);
   const provider = shallowRef<ethers.providers.Provider>(
+    new ethers.providers.JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any'),
+  );
+  const unwrappedProvider = shallowRef<ethers.providers.JsonRpcProvider>(
     new ethers.providers.JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any'),
   );
   const network = ref(Network.FromConfig);
@@ -62,7 +68,9 @@ export const useEthereumStore = defineStore('ethereum', () => {
       if (!net) return;
       const isSapphire = sapphire.NETWORKS[net as number];
       signer.value = isSapphire ? sapphire.wrap(s) : s;
+      unwrappedSigner.value = s;
       provider.value = isSapphire ? markRaw(sapphire.wrap(s.provider)) : s.provider;
+      unwrappedProvider.value = s.provider;
       network.value = net;
       address.value = addr;
     };
@@ -130,10 +138,25 @@ export const useEthereumStore = defineStore('ethereum', () => {
         } catch (e: any) {
           throw new Error(e);
         }
+      } else if (network === Network.SapphireLocalnet) {
+        try {
+          await eth.request({
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: '0x5afd',
+                chainName: 'Sapphire Localnet',
+                rpcUrls: ['http://localhost:8545'],
+              },
+            ],
+          });
+        } catch (e: any) {
+          throw new Error(e);
+        }
       }
       throw e;
     }
   }
 
-  return { signer, provider, address, network, connect, switchNetwork };
+  return { unwrappedSigner, signer, unwrappedProvider, provider, address, network, connect, switchNetwork };
 });

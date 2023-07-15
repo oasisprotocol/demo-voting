@@ -86,7 +86,7 @@ onMounted(async () => {
 <template>
   <section class="pt-5">
     <h2 class="capitalize text-white text-2xl font-bold mb-4">Poll overview</h2>
-    <p class="text-white text-base mb-20">Bellow is your overview of your active and past pools</p>
+    <p class="text-white text-base mb-20">Bellow is your overview of your active and past polls</p>
 
     <div v-if="canCreatePoll" class="flex justify-end mb-6">
       <RouterLink to="polls">
@@ -94,7 +94,7 @@ onMounted(async () => {
       </RouterLink>
     </div>
 
-    <h2 class="capitalize text-white text-2xl font-bold mb-6">Active pools</h2>
+    <h2 class="capitalize text-white text-2xl font-bold mb-6">Active Polls</h2>
 
     <div v-if="!isLoadingActive">
       <AppPoll
@@ -117,10 +117,10 @@ onMounted(async () => {
       v-if="!isLoadingActive && Object.keys(activePolls).length <= 0"
       class="text-white text-center mb-6 font-normal"
     >
-      You currently have no active pools
+      You currently have no active polls
     </p>
 
-    <h2 class="capitalize text-white text-2xl font-bold mb-6">Past pools</h2>
+    <h2 class="capitalize text-white text-2xl font-bold mb-6">Past Polls</h2>
 
     <div v-if="!isLoadingPast">
       <AppPoll
@@ -144,7 +144,7 @@ onMounted(async () => {
       v-if="!isLoadingPast && Object.keys(pastPolls).length <= 0"
       class="text-white text-center font-normal"
     >
-      You currently have no past pools
+      You currently have no past polls
     </p>
   </section>
 </template>

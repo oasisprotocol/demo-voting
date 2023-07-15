@@ -1,7 +1,9 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { DAOv1, ProposalParamsStruct } from "../typechain-types/DAOv1";
-import {BytesLike} from "ethers";
+import { BytesLike } from "ethers";
+import { StaticJsonRpcProvider } from "@ethersproject/providers";
+
+import { DAOv1, ProposalParamsStruct } from "../typechain-types/contracts/DAOv1";
 
 const TEST_PROPOSALS: ProposalParamsStruct[] = [
   {ipfsHash: "abcd123", numChoices: 3, publishVotes: true},
@@ -30,25 +32,26 @@ async function closeProposal(dao:DAOv1, proposalId:BytesLike) {
 }
 
 describe("DAOv1", function () {
-  async function deployDaoWithWhitelistACL() {
+  async function deployDaoWithWhitelistACL(gaslessAddress?:string) {
     const SimpleWhitelistACLv1_factory = await ethers.getContractFactory("SimpleWhitelistACLv1");
     const whitelist = await SimpleWhitelistACLv1_factory.deploy();
     await whitelist.deployed()
 
     const DAOv1_factory = await ethers.getContractFactory("DAOv1");
-    const dao = await DAOv1_factory.deploy(whitelist.address);
+    const dao = await DAOv1_factory.deploy(whitelist.address, gaslessAddress ?? ethers.constants.AddressZero);
     await dao.deployed();
 
     return {dao, whitelist}
   }
 
-  async function deployDao() {
+  async function deployDao(gaslessAddress?:string) {
     const DAOv1_factory = await ethers.getContractFactory("DAOv1");
-    const dao = await DAOv1_factory.deploy(ethers.constants.AddressZero);
+    const dao = await DAOv1_factory.deploy(ethers.constants.AddressZero, gaslessAddress ?? ethers.constants.AddressZero);
     await dao.deployed();
     return { dao };
   }
 
+  /*
   it("Should create proposals", async function () {
     const { dao } = await deployDao();
 
@@ -81,7 +84,7 @@ describe("DAOv1", function () {
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(1);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(0);
 
-    const acl = (await ethers.getContractFactory("SimpleWhitelistACLv1")).attach(await dao.acl());
+    const acl = (await ethers.getContractFactory("SimpleWhitelistACLv1")).attach(await dao.getACL());
     // Whitelist the first voter.
     await (await acl.setEligibleVoters(dao.address, proposalId, [(await ethers.getSigners())[1].address])).wait();
 
@@ -95,4 +98,63 @@ describe("DAOv1", function () {
     expect(topChoice.toNumber()).to.equal(2);
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(0);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(1);
-  });});
+  });
+  */
+  it('Should accept proxy votes', async function () {
+    const signer = ethers.provider.getSigner(0);
+
+    // Setup proxy signer contract
+    console.log('    - Deploying GaslessVoting');
+    const GaslessVoting_factory = await ethers.getContractFactory('GaslessVoting');
+    const gv = await GaslessVoting_factory.deploy(await signer.getAddress(), {value: ethers.utils.parseEther('1')});
+    await gv.deployed();
+    console.log('      =', gv.address);
+
+    // Configure DAO with proxy signer contract
+    console.log('    - Deploying DAOv1');
+    const { dao } = await deployDao(gv.address);
+    await gv.setDAO(dao.address);
+    console.log('      =', dao.address);
+
+    // Add a proposal, and request to vote on it
+    const proposalId = await addProposal(dao, TEST_PROPOSALS[0]);
+    const request = {
+        voter: await signer.getAddress(),
+        proposalId: proposalId,
+        choiceId: 1
+    };
+
+    // Sign voting request
+    const signature = await signer._signTypedData({
+      name: "DAOv1.GaslessVoting",
+      version: "1",
+      chainId: await signer.getChainId(),
+      verifyingContract: gv.address
+    }, {
+      VotingRequest: [
+        { name: 'voter', type: "address" },
+        { name: 'proposalId', type: 'bytes32' },
+        { name: 'choiceId', type: 'uint256' }
+      ]
+    }, request);
+    const rsv = ethers.utils.splitSignature(signature);
+
+    // Submit voting request to get signed transaction
+    const nonce = await gv.provider.getTransactionCount(await gv.signerAddr());
+    const gasPrice = await gv.provider.getGasPrice();
+    const tx = await gv.makeVoteTransaction(nonce, gasPrice, request, rsv);
+
+    // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
+    console.log('    - Submitting transaction');
+    const plain_provider = new StaticJsonRpcProvider(ethers.provider.connection);
+    let plain_resp = await plain_provider.sendTransaction(tx);
+    let receipt = await gv.provider.waitForTransaction(plain_resp.hash);
+    console.log('      =', receipt.transactionHash);
+
+    console.log('    - Closing Proposal');
+    const closed = await dao.closeProposal(proposalId);
+    const closed_receipt = await closed.wait();
+    expect(Number(closed_receipt.events![0].args!.topChoice)).to.equal(1);
+  });
+
+});

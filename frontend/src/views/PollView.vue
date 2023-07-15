@@ -111,21 +111,8 @@ async function doVote(): Promise<void> {
   if (receipt.status != 1) throw new Error('cast vote tx failed');
   existingVote.value = choice;
 
-  // Check if the ballot has closed by examining the events (logs).
-  let topChoice = undefined;
-  for (const event of receipt.events ?? []) {
-    if (
-      event.address == import.meta.env.VITE_BALLOT_BOX_V1_ADDR &&
-      event.event === 'BallotClosed'
-    ) {
-      topChoice = BigNumber.from(event.data).toNumber();
-    }
-  }
-  if (topChoice === undefined) return;
-  winningChoice.value = topChoice;
   let hasClosed = false;
   while (!hasClosed) {
-    console.log('checking if ballot has been closed on BSC');
     hasClosed = !(await staticDAOv1.callStatic.proposals(proposalId)).active;
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
@@ -150,7 +137,7 @@ onMounted(() => {
         <AppButton variant="secondary" @click="closeBallot">Close poll</AppButton>
       </div>
       <p v-if="poll.proposal.active" class="text-white text-base mb-10">
-        Please choose your anwer bellow
+        Please choose your anwer below:
       </p>
       <form @submit="vote">
         <div v-if="poll?.ipfsParams.choices">

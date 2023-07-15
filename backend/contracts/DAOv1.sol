@@ -48,10 +48,10 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
 
     // Confidential storage.
     mapping(ProposalId => Ballot) private _ballots;
-    address private proxyVoter;
     PollACLv1 private immutable acl;
 
     // Public storage.
+    address public proxyVoter;
     mapping(ProposalId => Proposal) public proposals;
     EnumerableSet.Bytes32Set private activeProposals; // NB: Recursive structs cannot be public.
     ProposalId[] public pastProposals;
@@ -68,7 +68,7 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
         returns (bool)
     {
         return interfaceID == 0x01ffc9a7                // ERC-165
-            || interfaceID == this.castVote.selector
+            || interfaceID == this.castVote.selector    // DAOv1
             || interfaceID == this.proxyVote.selector;  // AcceptsProxyVotes
     }
 
