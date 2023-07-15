@@ -4,7 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import { staticDAOv1, useDAOv1, usePollACLv1 } from '../contracts';
+import { staticDAOv1, useUnwrappedPollACLv1, useUnwrappedDAOv1, useDAOv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppBadge from '@/components/AppBadge.vue';
@@ -18,6 +18,7 @@ const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
 
 const dao = useDAOv1();
+const uwdao = useUnwrappedDAOv1();
 const eth = useEthereumStore();
 
 const error = ref('');
@@ -32,7 +33,7 @@ let canClosePoll = ref<Boolean>(false);
 let canAclVote = ref<Boolean>(false);
 
 (async () => {
-  const [active, params, topChoice] = await dao.value.callStatic.proposals(proposalId);
+  const [active, params, topChoice] = await uwdao.value.callStatic.proposals(proposalId);
   const proposal = { id: proposalId, active, topChoice, params };
   const ipfsParamsRes = await fetch(`https://w3s.link/ipfs/${params.ipfsHash}`);
   const ipfsParams = await ipfsParamsRes.json();
@@ -42,7 +43,7 @@ let canAclVote = ref<Boolean>(false);
     selectedChoice.value = winningChoice.value = proposal.topChoice;
   }
 
-  const acl = await usePollACLv1();
+  const acl = await useUnwrappedPollACLv1();
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
   canClosePoll.value = await acl.value.callStatic.canManagePoll(
     dao.value.address,

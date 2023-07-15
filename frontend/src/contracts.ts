@@ -25,11 +25,27 @@ export function useDAOv1(): ComputedRef<DAOv1> {
   });
 }
 
+export function useUnwrappedDAOv1(): ComputedRef<DAOv1> {
+  const eth = useEthereumStore();
+  const addr = import.meta.env.VITE_DAO_V1_ADDR!;
+  return computed(() => {
+    return DAOv1__factory.connect(addr, eth.unwrappedSigner ?? eth.unwrappedProvider);
+  });
+}
+
 export async function usePollACLv1(): Promise<ComputedRef<PollACLv1>> {
   const eth = useEthereumStore();
   const dao = useDAOv1().value;
 
   const ref = PollACLv1__factory.connect(await dao.getACL(), eth.signer ?? eth.provider);
+  return computed(() => { return ref });
+}
+
+export async function useUnwrappedPollACLv1(): Promise<ComputedRef<PollACLv1>> {
+  const eth = useEthereumStore();
+  const dao = useUnwrappedDAOv1().value;
+
+  const ref = PollACLv1__factory.connect(await dao.getACL(), eth.unwrappedSigner ?? eth.unwrappedProvider);
   return computed(() => { return ref });
 }
 

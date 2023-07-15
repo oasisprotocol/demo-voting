@@ -155,7 +155,7 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
     function proxyVote(address voter, ProposalId proposalId, uint256 choiceIdBig)
         external
     {
-        require( msg.sender != address(0) );
+        require( msg.sender != address(0), "TX must be signed" );
 
         require( msg.sender == proxyVoter, "Cannot call proxyVote directly" );
 
