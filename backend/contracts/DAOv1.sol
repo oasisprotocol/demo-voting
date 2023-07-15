@@ -56,8 +56,11 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
     EnumerableSet.Bytes32Set private activeProposals; // NB: Recursive structs cannot be public.
     ProposalId[] public pastProposals;
 
-    constructor(PollACLv1 a) {
-        acl = (address(a) == address(0)) ? new AllowAllACLv1() : a;
+    constructor(PollACLv1 in_acl, address in_proxyVoter)
+    {
+        acl = (address(in_acl) == address(0)) ? new AllowAllACLv1() : in_acl;
+
+        proxyVoter = in_proxyVoter;
     }
 
     function supportsInterface(bytes4 interfaceID)

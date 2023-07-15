@@ -42,7 +42,7 @@ task('deploy')
   .setAction(async (args, hre) => {
     await hre.run('compile');
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy(hre.ethers.constants.AddressZero);
+    const dao = await DAOv1.deploy(hre.ethers.constants.AddressZero, hre.ethers.constants.AddressZero);
     await dao.deployed();
 
     console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
@@ -57,7 +57,7 @@ task('deploy-simplewhitelist')
     const acl = await ACLv1.deploy();
     await acl.deployed();
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy(acl.address);
+    const dao = await DAOv1.deploy(acl.address, hre.ethers.constants.AddressZero);
     await dao.deployed();
 
     console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
@@ -78,7 +78,7 @@ task('whitelist-voters')
     const dao = DAOv1.attach(process.env.VITE_DAO_V1_ADDR!);
     const signer = new hre.ethers.Wallet(process.env.PRIVATE_KEY!, hre.ethers.provider);
     const ACLv1 = await hre.ethers.getContractFactory('SimpleWhitelistACLv1');
-    const acl = ACLv1.attach(await dao.acl()).connect(signer);
+    const acl = ACLv1.attach(await dao.getACL()).connect(signer);
 
     let file = await fs.readFile(process.env.VOTERS_FILE!);
     const addrRaw = file.toString().split("\n");
@@ -105,6 +105,9 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       chainId: 1337, // @see https://hardhat.org/metamask-issue.html
+    },
+    hardhat_local: {
+      url: 'http://127.0.0.1:8545/',
     },
     'sapphire': {
       url: 'https://sapphire.oasis.io',

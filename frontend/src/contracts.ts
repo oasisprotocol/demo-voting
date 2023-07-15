@@ -29,6 +29,6 @@ export async function usePollACLv1(): Promise<ComputedRef<PollACLv1>> {
   const eth = useEthereumStore();
   const dao = useDAOv1().value;
 
-  const ref = PollACLv1__factory.connect(await dao.acl(), eth.signer ?? eth.provider);
+  const ref = PollACLv1__factory.connect(await dao.getACL(), eth.signer ?? eth.provider);
   return computed(() => { return ref });
 }
