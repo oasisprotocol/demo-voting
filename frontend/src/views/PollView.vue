@@ -162,12 +162,6 @@ async function doVote(): Promise<void> {
   }
 
   existingVote.value = choice;
-
-  let hasClosed = false;
-  while (!hasClosed) {
-    hasClosed = !(await staticDAOv1.callStatic.proposals(proposalId)).active;
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
 }
 
 onMounted(() => {
