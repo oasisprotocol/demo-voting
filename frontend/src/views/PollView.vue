@@ -4,7 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import { staticDAOv1, useUnwrappedPollACLv1, useUnwrappedDAOv1, useDAOv1 } from '../contracts';
+import { staticDAOv1, useUnwrappedPollACLv1, useUnwrappedDAOv1, useDAOv1, useGaslessVoting, useUnwrappedGaslessVoting } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppBadge from '@/components/AppBadge.vue';
@@ -20,6 +20,8 @@ const proposalId = `0x${props.id}`;
 const dao = useDAOv1();
 const uwdao = useUnwrappedDAOv1();
 const eth = useEthereumStore();
+const gaslessVoting = useGaslessVoting();
+const unwrappedGaslessVoting = useUnwrappedGaslessVoting();
 
 const error = ref('');
 const isLoading = ref(false);
@@ -104,12 +106,61 @@ async function doVote(): Promise<void> {
 
   const choice = selectedChoice.value;
 
-  console.log('casting vote');
-  await eth.switchNetwork(Network.FromConfig);
-  const tx = await dao.value.castVote(proposalId, choice);
-  const receipt = await tx.wait();
+  const gv = (await gaslessVoting).value;
+  const ugv = (await unwrappedGaslessVoting).value;
 
-  if (receipt.status != 1) throw new Error('cast vote tx failed');
+  if( gv && ugv ) {
+    console.log('doVote: using gasless voting');
+
+    if( ! eth.signer ) {
+      throw new Error('No signer!');
+    }
+
+    const request = {
+        voter: await gv.signer.getAddress(),
+        proposalId: proposalId,
+        choiceId: choice
+    };
+
+    // Sign voting request
+    const signature = await eth.signer._signTypedData({
+      name: "DAOv1.GaslessVoting",
+      version: "1",
+      chainId: import.meta.env.VITE_NETWORK,
+      verifyingContract: gv.address
+    }, {
+      VotingRequest: [
+        { name: 'voter', type: "address" },
+        { name: 'proposalId', type: 'bytes32' },
+        { name: 'choiceId', type: 'uint256' }
+      ]
+    }, request);
+    const rsv = ethers.utils.splitSignature(signature);
+
+    // Submit voting request to get signed transaction
+    const nonce = await uwdao.value.provider.getTransactionCount(await ugv.signerAddr());
+    const gasPrice = await uwdao.value.provider.getGasPrice();
+    console.log('doVote.gasless: constructing tx', 'nonce', nonce, 'gasPrice', gasPrice);
+    const tx = await ugv.makeVoteTransaction(nonce, gasPrice, request, rsv);
+
+    // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
+    let plain_resp = await eth.unwrappedProvider.sendTransaction(tx);
+    console.log('doVote.gasless: waiting for tx', plain_resp.hash);
+    const receipt = await ugv.provider.waitForTransaction(plain_resp.hash)
+
+    if (receipt.status != 1) throw new Error('cast vote tx failed');
+
+    console.log('doVote.gasless: success');
+  }
+  else {
+    console.log('doVote: casting vote using normal tx');
+    await eth.switchNetwork(Network.FromConfig);
+    const tx = await dao.value.castVote(proposalId, choice);
+    const receipt = await tx.wait();
+
+    if (receipt.status != 1) throw new Error('cast vote tx failed');
+  }
+
   existingVote.value = choice;
 
   let hasClosed = false;

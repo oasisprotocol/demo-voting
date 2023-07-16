@@ -51,20 +51,43 @@ export async function useUnwrappedPollACLv1(): Promise<ComputedRef<PollACLv1>> {
 
 export async function useGaslessVoting(): Promise<ComputedRef<GaslessVoting|undefined>> {
   const eth = useEthereumStore();
-  const dao = useDAOv1().value;
+  const dao = useUnwrappedDAOv1().value;
   const proxyVoter = await dao.proxyVoter();
 
   let ref : undefined | GaslessVoting = undefined;
 
   if( proxyVoter != ethers.constants.AddressZero ) {
-    ref = GaslessVoting__factory.connect(proxyVoter, eth.signer ?? eth.provider);
-    const sig = ref.interface.getSighash(ref.interface.getFunction('makeVoteTransaction'));
-    const isGaslessVoting = await ref.supportsInterface(sig);
+    const uw = GaslessVoting__factory.connect(proxyVoter, eth.unwrappedSigner ?? eth.unwrappedProvider);
+    const sig = uw.interface.getSighash(uw.interface.getFunction('makeVoteTransaction'));
+    const isGaslessVoting = await uw.supportsInterface(sig);
     if( ! isGaslessVoting ) {
       console.log('Proxy Voter', proxyVoter, 'is not a gasless voting contract!');
-      ref = undefined;
     }
     else {
+      ref = GaslessVoting__factory.connect(proxyVoter, eth.signer ?? eth.provider);
+      console.log('Proxy Voter', proxyVoter, 'supports GaslessVoting interface');
+    }
+  }
+
+  return computed(() => { return ref });
+}
+
+export async function useUnwrappedGaslessVoting(): Promise<ComputedRef<GaslessVoting|undefined>> {
+  const eth = useEthereumStore();
+  const dao = useUnwrappedDAOv1().value;
+  const proxyVoter = await dao.proxyVoter();
+
+  let ref : undefined | GaslessVoting = undefined;
+
+  if( proxyVoter != ethers.constants.AddressZero ) {
+    const uw = GaslessVoting__factory.connect(proxyVoter, eth.unwrappedSigner ?? eth.unwrappedProvider);
+    const sig = uw.interface.getSighash(uw.interface.getFunction('makeVoteTransaction'));
+    const isGaslessVoting = await uw.supportsInterface(sig);
+    if( ! isGaslessVoting ) {
+      console.log('Proxy Voter', proxyVoter, 'is not a gasless voting contract!');
+    }
+    else {
+      ref = GaslessVoting__factory.connect(proxyVoter, eth.unwrappedSigner ?? eth.unwrappedProvider);
       console.log('Proxy Voter', proxyVoter, 'supports GaslessVoting interface');
     }
   }
