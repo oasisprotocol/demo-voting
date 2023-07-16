@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { ethers } from 'ethers';
 
-import { useDAOv1, useGaslessVoting, useUnwrappedDAOv1 } from '../contracts';
+import { useDAOv1, useGaslessVoting, useUnwrappedDAOv1, useUnwrappedGaslessVoting } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import type { Poll } from '../../../functions/api/types';
 import AppButton from '@/components/AppButton.vue';
@@ -14,6 +14,7 @@ const eth = useEthereumStore();
 const dao = useDAOv1();
 const uwdao = useUnwrappedDAOv1();
 const gaslessVoting = useGaslessVoting();
+const unwrappedGaslessVoting = useUnwrappedGaslessVoting();
 
 const pinBody = async (jwt: string, poll: Poll) => {
   const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
@@ -102,7 +103,8 @@ async function doCreatePoll(): Promise<string> {
   let proposalId : string;
 
   const gv = (await gaslessVoting).value;
-  if( gv ) {
+  const ugv = (await unwrappedGaslessVoting).value;
+  if( gv && ugv ) {
     console.log('doCreatePoll: Using GaslessVoting to create proposal');
 
     if( ! eth.signer ) {
@@ -133,16 +135,16 @@ async function doCreatePoll(): Promise<string> {
     const rsv = ethers.utils.splitSignature(signature);
 
     // Make the pre-signed transaction
-    const nonce = await gv.provider.getTransactionCount(await gv.signerAddr());
-    const gasPrice = await gv.provider.getGasPrice();
+    const nonce = await ugv.provider.getTransactionCount(await ugv.signerAddr());
+    const gasPrice = await ugv.provider.getGasPrice();
     console.log('doCreatePoll: using nonce', nonce, 'gasPrice', gasPrice);
-    const tx = await gv.makeProposalTransaction(nonce, gasPrice, creator, proposalParams, rsv);
+    const tx = await ugv.makeProposalTransaction(nonce, gasPrice, creator, proposalParams, rsv);
     console.log('doCreatePoll: Made Gasless CreateProposal Transaction', tx);
 
     // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
     let plain_resp = await eth.unwrappedProvider.sendTransaction(tx);
     console.log('doCreatePoll: waiting for tx', plain_resp.hash);
-    const receipt = await gv.provider.waitForTransaction(plain_resp.hash);
+    const receipt = await ugv.provider.waitForTransaction(plain_resp.hash);
     console.log('x ' + JSON.stringify(receipt));
     if (receipt.status !== 1) {
       throw new Error('doCreatePoll: tx receipt reported failure.');
