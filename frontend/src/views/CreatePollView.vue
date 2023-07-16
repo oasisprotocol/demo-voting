@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { ethers } from 'ethers';
 
-import { useDAOv1, useGaslessVoting } from '../contracts';
+import { useDAOv1, useGaslessVoting, useUnwrappedDAOv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import type { Poll } from '../../../functions/api/types';
 import AppButton from '@/components/AppButton.vue';
@@ -12,6 +12,7 @@ import SuccessInfo from '@/components/SuccessInfo.vue';
 
 const eth = useEthereumStore();
 const dao = useDAOv1();
+const uwdao = useUnwrappedDAOv1();
 const gaslessVoting = useGaslessVoting();
 
 const pinBody = async (jwt: string, poll: Poll) => {
@@ -114,7 +115,7 @@ async function doCreatePoll(): Promise<string> {
     const signature = await eth.signer._signTypedData({
       name: "DAOv1.GaslessVoting",
       version: "1",
-      chainId: await gv.getChainId(),
+      chainId: import.meta.env.VITE_NETWORK,
       verifyingContract: gv.address
     }, {
       CreateProposal: [
@@ -170,7 +171,7 @@ async function doCreatePoll(): Promise<string> {
   let isActive = false;
   while (!isActive) {
     console.log('doCreatePoll: checking if ballot has been created on Sapphire', proposalId);
-    isActive = await dao.value.callStatic.ballotIsActive(proposalId!);
+    isActive = await uwdao.value.callStatic.ballotIsActive(proposalId!);
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   return proposalId!.replace('0x', '');

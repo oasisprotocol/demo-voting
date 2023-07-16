@@ -4,7 +4,7 @@ import { onMounted, ref, shallowRef } from 'vue';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import { useDAOv1, useUnwrappedPollACLv1 } from '../contracts';
+import { useDAOv1, useUnwrappedPollACLv1, useUnwrappedDAOv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppPoll from '@/components/AppPoll.vue';
@@ -12,6 +12,7 @@ import PollLoader from '@/components/PollLoader.vue';
 
 const eth = useEthereumStore();
 const dao = useDAOv1();
+const uwdao = useUnwrappedDAOv1();
 
 type FullProposal = DAOv1.ProposalWithIdStructOutput & { params: Poll };
 const activePolls = shallowRef<Record<string, FullProposal>>({});
@@ -64,7 +65,7 @@ onMounted(async () => {
 
   await Promise.all([
     fetchProposals((offset, batchSize) =>
-      dao.value.callStatic.getActiveProposals(offset, batchSize, {
+      uwdao.value.callStatic.getActiveProposals(offset, batchSize, {
         blockTag,
       }),
     ).then((proposalsMap) => {
@@ -72,7 +73,7 @@ onMounted(async () => {
       isLoadingActive.value = false;
     }),
     fetchProposals((offset, batchSize) => {
-      return dao.value.callStatic.getPastProposals(offset, batchSize, {
+      return uwdao.value.callStatic.getPastProposals(offset, batchSize, {
         blockTag,
       });
     }).then((proposalsMap) => {

@@ -217,7 +217,7 @@ onMounted(() => {
           :disabled="!canVote || isLoading"
           @click="vote"
         >
-          <span v-if="isLoading">Pushing…</span>
+          <span v-if="isLoading">Submitting Vote…</span>
           <span v-else-if="!isLoading">Submit vote</span>
         </AppButton>
         <p v-if="error" class="error mt-2 text-center">
