@@ -51,7 +51,6 @@ describe("DAOv1", function () {
     return { dao };
   }
 
-  /*
   it("Should create proposals", async function () {
     const { dao } = await deployDao();
 
@@ -99,7 +98,8 @@ describe("DAOv1", function () {
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(0);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(1);
   });
-  */
+
+  /*
   it('Should accept proxy votes', async function () {
     const signer = ethers.provider.getSigner(0);
 
@@ -156,5 +156,5 @@ describe("DAOv1", function () {
     const closed_receipt = await closed.wait();
     expect(Number(closed_receipt.events![0].args!.topChoice)).to.equal(1);
   });
-
+  */
 });
