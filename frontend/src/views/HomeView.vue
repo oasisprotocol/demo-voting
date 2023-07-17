@@ -5,7 +5,7 @@ import { onMounted, ref, shallowRef } from 'vue';
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
 import { useDAOv1, useUnwrappedPollACLv1, useUnwrappedDAOv1 } from '../contracts';
-import { Network, useEthereumStore } from '../stores/ethereum';
+import { useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppPoll from '@/components/AppPoll.vue';
 import PollLoader from '@/components/PollLoader.vue';
@@ -26,7 +26,6 @@ async function fetchProposals(
 ): Promise<Record<string, FullProposal>> {
   const proposalsMap: Record<string, FullProposal> = {};
 
-  await eth.switchNetwork(Network.FromConfig);
   const batchSize = 100;
   for (let offset = 0; ; offset += batchSize) {
     let proposals: DAOv1.ProposalWithIdStructOutput[] = [];

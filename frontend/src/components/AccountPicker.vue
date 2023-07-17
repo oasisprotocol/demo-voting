@@ -5,6 +5,7 @@ import { Network, networkName, useEthereumStore } from '../stores/ethereum';
 import JazzIcon from './JazzIcon.vue';
 import { abbrAddr } from '@/utils/utils';
 import { useMedia } from '@/utils/useMediaQuery';
+import { MetaMaskNotInstalledError } from '@/utils/errors';
 
 const eth = useEthereumStore();
 
@@ -12,16 +13,24 @@ const netName = computed(() => networkName(eth.network));
 const unkNet = computed(() => eth.network === Network.Unknown);
 
 const connecting = ref(false);
-const showingConnecting = ref(false);
+const isMetaMaskInstalled = ref(true);
 
 async function connectWallet() {
+  if (!isMetaMaskInstalled.value) {
+    window.open('https://metamask.io/download/');
+    return;
+  }
+
   if (connecting.value) return;
   connecting.value = true;
   try {
-    setTimeout(() => {
-      showingConnecting.value = connecting.value;
-    }, 300);
     await eth.connect();
+  } catch (err) {
+    if (!(err instanceof MetaMaskNotInstalledError)) {
+      throw err;
+    } else {
+      isMetaMaskInstalled.value = false;
+    }
   } finally {
     connecting.value = false;
   }
@@ -41,9 +50,14 @@ const isXlScreen = useMedia('(min-width: 1280px)');
         }}</span>
       </span>
     </span>
+    <span class="account-picker-content" v-else-if="!isMetaMaskInstalled">
+      <span>
+        <span>Install MetaMask</span>
+      </span>
+    </span>
     <span class="account-picker-content" v-else>
       <span>
-        <span v-if="showingConnecting">Connecting…</span>
+        <span v-if="connecting">Connecting…</span>
         <span v-else>Connect Wallet</span>
       </span>
     </span>
