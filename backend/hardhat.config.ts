@@ -10,7 +10,7 @@ import { HardhatUserConfig, task, types } from 'hardhat/config';
 import '@typechain/hardhat';
 import 'hardhat-watcher';
 import 'solidity-coverage';
-import { DAOv1__factory, GaslessVoting } from './typechain-types';
+import {DAOv1__factory, EthereumUtils, GaslessVoting} from './typechain-types';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 const TASK_EXPORT_ABIS = 'export-abis';
@@ -43,11 +43,21 @@ task(TASK_EXPORT_ABIS, async (_args, hre) => {
 task('deploy')
   .addFlag('gasless', 'Enable GaslessVoting plugin')
   .addParam('gaslessFunds', 'How much ROSE to give to GaslessVoting', '1')
+  .addParam('acl', 'Access Control List contract name to use', '')
   .setAction(async (args, hre) => {
     await hre.run('compile');
 
     let gv : GaslessVoting | undefined;
     let gv_address : string | undefined;
+
+    let acl: EthereumUtils | undefined;
+    if (args.acl) {
+      console.log('Deploying ACL')
+      const ACLv1 = await hre.ethers.getContractFactory(args.acl);
+      acl = await ACLv1.deploy();
+      await acl.deployed();
+      console.log(`Deployed ACL to ${acl.address}`);
+    }
 
     if( args.gasless ) {
       console.log('Deploying GaslessVoting');
@@ -59,7 +69,7 @@ task('deploy')
     }
 
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy(hre.ethers.constants.AddressZero, gv_address ?? hre.ethers.constants.AddressZero);
+    const dao = await DAOv1.deploy(acl ? acl.address : hre.ethers.constants.AddressZero, gv_address ?? hre.ethers.constants.AddressZero);
     await dao.deployed();
 
     if( gv ) {
@@ -124,21 +134,6 @@ task('gv-newkp', 'Add a new KeyPair to gasless voting contract')
     }
 });
 
-// DAO deployment using SimpleWhitelistACL.
-task('deploy-simplewhitelist')
-  .setAction(async (args, hre) => {
-    await hre.run('compile');
-    const ACLv1 = await hre.ethers.getContractFactory('SimpleWhitelistACLv1');
-    const acl = await ACLv1.deploy();
-    await acl.deployed();
-    const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy(acl.address, hre.ethers.constants.AddressZero);
-    await dao.deployed();
-
-    console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
-    return dao;
-});
-
 // Whitelist the voters for the poll in DAO using SimpleWhitelistACL.
 // Required env variables:
 // - PRIVATE_KEY: private key of the poll manager
@@ -197,7 +192,7 @@ const config: HardhatUserConfig = {
     'sapphire-localnet': {
       url: 'http://localhost:8545',
       chainId: 0x5afd,
-      accounts: TEST_HDWALLET,
+      accounts,
     },
   },
   solidity: {

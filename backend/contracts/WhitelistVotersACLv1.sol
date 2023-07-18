@@ -3,11 +3,12 @@ pragma solidity ^0.8.0;
 
 import {PollACLv1, ProposalId} from "./Types.sol"; // solhint-disable-line no-global-import
 
-// Simple whitelist ACL where:
+// ACL rules:
 // - anyone can create a poll
-// - poll managers must be explicitly defined
-// - whitelisted voters can vote on particular ballot
-contract SimpleWhitelistACLv1 is PollACLv1 {
+// - poll creator becomes poll manager
+// - different poll managers can be set by the ACL owner
+// - only whitelisted voters can vote on particular ballot
+contract WhitelistVotersACLv1 is PollACLv1 {
     // Stores (dao, ProposalID, poll manager address) triplet.
     mapping (bytes32 => mapping(address => bool)) pollManagers;
     // Stores (dao, ProposalID) => list of poll managers in form of a list for

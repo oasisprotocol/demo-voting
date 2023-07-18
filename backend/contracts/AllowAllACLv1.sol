@@ -5,6 +5,11 @@ import {PollACLv1, ProposalId} from "./Types.sol"; // solhint-disable-line no-gl
 
 // Simple ACL where anyone can create a poll, manage any poll and cast vote.
 // This ACL should be used for TESTING AND DEMONSTRATION PURPOSES ONLY!
+//
+// ACL rules:
+// - anyone can create a poll
+// - anyone can manad and close the poll
+// - anyone can vote on any ballot
 contract AllowAllACLv1 is PollACLv1 {
     function canCreatePoll(address, address)
         external pure
