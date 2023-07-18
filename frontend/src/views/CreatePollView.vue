@@ -130,7 +130,7 @@ async function doCreatePoll(): Promise<string> {
         </label>
       </div>
 
-      <div class="form-group">
+      <div class="form-group form-group-textarea">
         <textarea id="description" class="peer" placeholder=" " v-model="pollDesc" rows="3" />
         <label
           for="description"
@@ -140,7 +140,7 @@ async function doCreatePoll(): Promise<string> {
         </label>
       </div>
 
-      <div class="form-group-answers">
+      <div class="form-group-extended">
         <label class="inline-block mb-5"
           >Answers
           <span class="text-red-500">*</span>
@@ -184,7 +184,7 @@ async function doCreatePoll(): Promise<string> {
         </AppButton>
       </div>
 
-      <div class="form-group-answers">
+      <div class="form-group-extended">
         <label class="inline-block mb-5">Additional options</label>
         <div class="flex pl-4">
           <input
@@ -227,7 +227,7 @@ async function doCreatePoll(): Promise<string> {
 
 <style scoped lang="postcss">
 .form-group,
-.form-group-answers {
+.form-group-extended {
   @apply relative mb-6;
 }
 
@@ -240,15 +240,35 @@ textarea {
   @apply absolute text-base text-primaryDark duration-300 transform -translate-y-5 scale-75 top-6 z-10 origin-[0] left-5;
 }
 
-.form-group-answers {
+.form-group-textarea {
+  @apply overflow-hidden;
+}
+
+.form-group-textarea textarea {
+  @apply pt-6;
+}
+
+.form-group-textarea label {
+  @apply top-6 h-10;
+  width: calc(130% - 14px);
+}
+
+.form-group-textarea label::before {
+  @apply h-10 -top-3 absolute bg-white;
+  z-index: -1;
+  content: ' ';
+  width: calc(100% - 14px); /* scrollbar */
+}
+
+.form-group-extended {
   @apply block rounded-xl py-6 px-5 w-full appearance-none focus:outline-none focus:ring-0 bg-white;
 }
 
-.form-group-answers > label {
+.form-group-extended > label {
   @apply text-base text-primaryDark;
 }
 
-.form-group-answers input:not([type='checkbox']) {
+.form-group-extended input:not([type='checkbox']) {
   @apply w-full;
   border-bottom: 1px solid rgba(0, 0, 0, 0.42);
 }

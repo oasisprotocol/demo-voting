@@ -23,6 +23,7 @@ const eth = useEthereumStore();
 const error = ref('');
 const isLoading = ref(false);
 const hasVoted = ref(false);
+const isClosed = ref(false);
 const poll = ref<DAOv1.ProposalWithIdStructOutput & { ipfsParams: Poll }>();
 const winningChoice = ref<number | undefined>(undefined);
 const selectedChoice = ref<number | undefined>();
@@ -76,6 +77,9 @@ async function closeBallot(): Promise<void> {
   const receipt = await tx.wait();
 
   if (receipt.status != 1) throw new Error('close ballot tx failed');
+  else {
+    isClosed.value = true;
+  }
 }
 
 async function vote(e: Event): Promise<void> {
@@ -133,7 +137,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <section v-if="!hasVoted">
+  <section v-if="!hasVoted && !isClosed">
     <div v-if="poll">
       <div class="flex justify-between items-center mb-4">
         <h2 class="capitalize text-white text-2xl font-bold">{{ poll.ipfsParams.name }}</h2>
@@ -191,10 +195,10 @@ onMounted(() => {
 
     <PollDetailsLoader v-else />
   </section>
-  <section v-else>
+  <section v-else-if="hasVoted">
     <SuccessInfo>
       <h3 class="text-white text-3xl mb-4">Thank you</h3>
-      <p class="text-white text-base mb-4">Your vote has been recorded.</p>
+      <p class="text-white text-center text-base mb-4">Your vote has been recorded.</p>
 
       <AppButton
         v-if="poll?.ipfsParams?.choices && selectedChoice"
@@ -207,7 +211,16 @@ onMounted(() => {
         </span>
       </AppButton>
 
-      <p class="text-white text-base mb-24">Your vote will be published after voting has ended.</p>
+      <p class="text-white text-center text-base mb-24">Your vote will be published after voting has ended.</p>
+
+      <RouterLink to="/">
+        <AppButton variant="secondary">Go to overview</AppButton>
+      </RouterLink>
+    </SuccessInfo>
+  </section>
+  <section v-else-if="isClosed">
+    <SuccessInfo>
+      <p class="text-white text-base mb-4">Your poll has been closed.</p>
 
       <RouterLink to="/">
         <AppButton variant="secondary">Go to overview</AppButton>
