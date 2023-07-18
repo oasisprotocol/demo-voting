@@ -135,17 +135,17 @@ async function doCreatePoll(): Promise<string> {
     const rsv = ethers.utils.splitSignature(signature);
 
     // Make the pre-signed transaction
-    const nonce = await ugv.provider.getTransactionCount(await ugv.signerAddr());
+    //const nonce = await ugv.provider.getTransactionCount(await ugv.signerAddr());
     const gasPrice = await ugv.provider.getGasPrice();
-    console.log('doCreatePoll: using nonce', nonce, 'gasPrice', gasPrice);
-    const tx = await ugv.makeProposalTransaction(nonce, gasPrice, creator, proposalParams, rsv);
+    console.log('doCreatePoll: using gasPrice', gasPrice);
+    const tx = await ugv.makeProposalTransaction(gasPrice, creator, proposalParams, rsv);
     console.log('doCreatePoll: Made Gasless CreateProposal Transaction', tx);
 
     // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
     let plain_resp = await eth.unwrappedProvider.sendTransaction(tx);
     console.log('doCreatePoll: waiting for tx', plain_resp.hash);
     const receipt = await ugv.provider.waitForTransaction(plain_resp.hash);
-    console.log('x ' + JSON.stringify(receipt));
+
     if (receipt.status !== 1) {
       throw new Error('doCreatePoll: tx receipt reported failure.');
     }

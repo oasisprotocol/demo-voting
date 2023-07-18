@@ -34,8 +34,8 @@ importers:
         specifier: ^2.2.2
         version: 2.2.3(ethers@5.7.2)(hardhat@2.12.7)
       '@oasisprotocol/sapphire-contracts':
-        specifier: ^0.2.2
-        version: 0.2.2
+        specifier: ^0.2.3
+        version: 0.2.3
       '@oasisprotocol/sapphire-hardhat':
         specifier: ^2.16.1
         version: 2.16.1(hardhat@2.12.7)(ts-node@10.9.1)(typescript@4.9.5)
@@ -1292,8 +1292,8 @@ packages:
       bsaes: 0.0.2
       uint32: 0.2.1
 
-  /@oasisprotocol/sapphire-contracts@0.2.2:
-    resolution: {integrity: sha512-1W1Hd16eyisQdwB5qP58g52i9YNX7mV+vxCXKs2VFBZISJe6scPxAjmVcdLremiGaZkzpTPfCx1tt8FTiZkTtA==}
+  /@oasisprotocol/sapphire-contracts@0.2.3:
+    resolution: {integrity: sha512-Q4zKV9KzyEbNTv1M5nHB34ODr9NyhY7nkl0gactlKeo2LlpNC7obM+aIxKzE/Tq2NlCfIyC5UWbDB3+YZ7SJUg==}
     dev: true
 
   /@oasisprotocol/sapphire-hardhat@2.16.1(hardhat@2.12.7)(ts-node@10.9.1)(typescript@4.9.5):

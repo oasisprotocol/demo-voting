@@ -138,10 +138,9 @@ async function doVote(): Promise<void> {
     const rsv = ethers.utils.splitSignature(signature);
 
     // Submit voting request to get signed transaction
-    const nonce = await uwdao.value.provider.getTransactionCount(await ugv.signerAddr());
     const gasPrice = await uwdao.value.provider.getGasPrice();
-    console.log('doVote.gasless: constructing tx', 'nonce', nonce, 'gasPrice', gasPrice);
-    const tx = await ugv.makeVoteTransaction(nonce, gasPrice, request, rsv);
+    console.log('doVote.gasless: constructing tx', 'gasPrice', gasPrice);
+    const tx = await ugv.makeVoteTransaction(gasPrice, request, rsv);
 
     // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
     let plain_resp = await eth.unwrappedProvider.sendTransaction(tx);

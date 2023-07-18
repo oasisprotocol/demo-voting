@@ -10,7 +10,8 @@ import { HardhatUserConfig, task, types } from 'hardhat/config';
 import '@typechain/hardhat';
 import 'hardhat-watcher';
 import 'solidity-coverage';
-import { GaslessVoting } from './typechain-types';
+import { DAOv1__factory, GaslessVoting } from './typechain-types';
+import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 const TASK_EXPORT_ABIS = 'export-abis';
 
@@ -67,6 +68,60 @@ task('deploy')
 
     console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
     return dao;
+});
+
+async function getGaslessProxy(hre:HardhatRuntimeEnvironment, daoAddr:string)
+{
+  const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
+  const signers = await hre.ethers.getSigners();
+  const provider = signers[0].provider;
+  if( ! provider ) {
+    throw Error('Unknown provider for default signer!')
+  }
+  //const dao = DAOv1.connect(signers[0]).attach(daoAddr);
+  const dao = DAOv1.attach(daoAddr);
+  const gv_addr = await dao.proxyVoter();
+  const GaslessVoting = await hre.ethers.getContractFactory('GaslessVoting');
+  return GaslessVoting.attach(gv_addr);
+}
+
+task('gv-topup')
+  .addPositionalParam('dao', 'DAO address')
+  .addOptionalParam('amount', 'Amount to topup [each/the] account', '0.1')
+  .addOptionalPositionalParam('kp', 'Keypair public address to topup')
+  .setAction(async (args, hre) => {
+    const gv = await getGaslessProxy(hre, args.dao);
+    console.log('Getting address list');
+    const addrs = await gv.listAddresses();
+    if( args.kp ) {
+      if( addrs.indexOf(args.kp) == -1 ) {
+        throw new Error(`Unknown keypair: ${args.kp}`)
+      }
+    }
+
+    for( const x of addrs ) {
+      console.log('  ', x);
+    }
+});
+
+task('gv-newkp', 'Add a new KeyPair to gasless voting contract')
+  .addPositionalParam('dao', 'DAO address')
+  .addPositionalParam('n', 'Number of keypairs to create', '1')
+  .addParam('amount', 'Amount to topup [each/the] new addresses', '0.1')
+  .setAction(async (args, hre) => {
+    const n = Number(args.n);
+    if( n < 1 ) {
+      throw new Error(`Invalid number of accounts: ${n}`);
+    }
+    const gv = await getGaslessProxy(hre, args.dao);
+    const value = hre.ethers.utils.parseEther(args.amount);
+    console.log(`Creating ${n} keypairs, with ${args.amount} ROSE each`);
+    for( let i = 0; i < n; i++ ) {
+      const tx = await gv.addKeypair({value: value});
+      const receipt = await tx.wait();
+      const addr = receipt.logs[0].data;
+      console.log(` - ${addr}`, hre.ethers.utils.formatEther(await gv.provider.getBalance(addr)));
+    }
 });
 
 // DAO deployment using SimpleWhitelistACL.

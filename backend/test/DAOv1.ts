@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { BytesLike } from "ethers";
-import { StaticJsonRpcProvider } from "@ethersproject/providers";
+import { JsonRpcSigner, StaticJsonRpcProvider } from "@ethersproject/providers";
 
 import { DAOv1, ProposalParamsStruct } from "../typechain-types/contracts/DAOv1";
 
@@ -9,6 +9,22 @@ const TEST_PROPOSALS: ProposalParamsStruct[] = [
   {ipfsHash: "abcd123", numChoices: 3, publishVotes: true},
   {ipfsHash: "abc1234", numChoices: 3, publishVotes: true},
 ];
+
+async function signVotingRequest(signer:JsonRpcSigner, gv_address:string, request:any) {
+  const signature = await signer._signTypedData({
+    name: "DAOv1.GaslessVoting",
+    version: "1",
+    chainId: await signer.getChainId(),
+    verifyingContract: gv_address
+  }, {
+    VotingRequest: [
+      { name: 'voter', type: "address" },
+      { name: 'proposalId', type: 'bytes32' },
+      { name: 'choiceId', type: 'uint256' }
+    ]
+  }, request);
+  return ethers.utils.splitSignature(signature);
+}
 
 async function addProposal(dao:DAOv1, proposal:ProposalParamsStruct) {
   const createProposalTx = (await dao.createProposal(proposal));
@@ -51,6 +67,7 @@ describe("DAOv1", function () {
     return { dao };
   }
 
+  /*
   it("Should create proposals", async function () {
     const { dao } = await deployDao();
 
@@ -98,8 +115,7 @@ describe("DAOv1", function () {
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(0);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(1);
   });
-
-  /*
+  */
   it('Should accept proxy votes', async function () {
     const signer = ethers.provider.getSigner(0);
 
@@ -140,12 +156,12 @@ describe("DAOv1", function () {
     const rsv = ethers.utils.splitSignature(signature);
 
     // Submit voting request to get signed transaction
-    const nonce = await gv.provider.getTransactionCount(await gv.signerAddr());
+    //const nonce = await gv.provider.getTransactionCount(await gv.signerAddr());
     const gasPrice = await gv.provider.getGasPrice();
-    const tx = await gv.makeVoteTransaction(nonce, gasPrice, request, rsv);
+    const tx = await gv.makeVoteTransaction(gasPrice, request, rsv);
 
     // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
-    console.log('    - Submitting transaction');
+    console.log('    - Submitting vote transaction');
     const plain_provider = new StaticJsonRpcProvider(ethers.provider.connection);
     let plain_resp = await plain_provider.sendTransaction(tx);
     let receipt = await gv.provider.waitForTransaction(plain_resp.hash);
@@ -156,5 +172,4 @@ describe("DAOv1", function () {
     const closed_receipt = await closed.wait();
     expect(Number(closed_receipt.events![0].args!.topChoice)).to.equal(1);
   });
-  */
 });

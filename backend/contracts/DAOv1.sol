@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./Types.sol"; // solhint-disable-line no-global-import
-import {IERC165} from "./IERC165.sol"; // solhint-disable-line no-global-import
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import "./AllowAllACLv1.sol"; // solhint-disable-line no-global-import
 
 contract DAOv1 is IERC165, AcceptsProxyVotes {
