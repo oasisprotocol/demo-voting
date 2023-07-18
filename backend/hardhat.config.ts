@@ -1,16 +1,16 @@
-import '@oasisprotocol/sapphire-hardhat';
+//import '@oasisprotocol/sapphire-hardhat';
 import "@nomiclabs/hardhat-ethers"
 import { promises as fs } from 'fs';
 import path from 'path';
 
 import canonicalize from 'canonicalize';
 import { TASK_COMPILE } from 'hardhat/builtin-tasks/task-names';
-import { HardhatUserConfig, task, types } from 'hardhat/config';
+import { HardhatUserConfig, task } from 'hardhat/config';
 
 import '@typechain/hardhat';
 import 'hardhat-watcher';
 import 'solidity-coverage';
-import {DAOv1__factory, EthereumUtils, GaslessVoting} from './typechain-types';
+import { EthereumUtils, GaslessVoting } from './typechain-types';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 const TASK_EXPORT_ABIS = 'export-abis';
@@ -43,6 +43,7 @@ task(TASK_EXPORT_ABIS, async (_args, hre) => {
 task('deploy')
   .addFlag('gasless', 'Enable GaslessVoting plugin')
   .addParam('gaslessFunds', 'How much ROSE to give to GaslessVoting', '1')
+  .addParam('gaslessAccounts', 'How many gas accounts to create', '1')
   .addParam('acl', 'Access Control List contract name to use', '')
   .setAction(async (args, hre) => {
     await hre.run('compile');
@@ -63,6 +64,7 @@ task('deploy')
       console.log('Deploying GaslessVoting');
       const GaslessVoting_factory = await hre.ethers.getContractFactory('GaslessVoting');
       const funds = hre.ethers.utils.parseEther(args.gaslessFunds);
+
       gv = await GaslessVoting_factory.deploy(hre.ethers.constants.AddressZero, {value: funds});
       await gv.deployed();
       gv_address = gv.address;
@@ -74,6 +76,19 @@ task('deploy')
 
     if( gv ) {
       await gv.setDAO(dao.address);
+
+      let n = Number(args.gaslessAccounts);
+      if( n > 1 ) {
+        console.log(`Adding ${n-1} accounts`);
+        for( let i = 0; i < n; i++ ) {
+          await gv.addKeypair();
+        }
+      }
+
+      const accounts = await gv.listAddresses();
+      for( const a of accounts ) {
+        console.log(' -', a);
+      }
     }
 
     console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
@@ -82,42 +97,54 @@ task('deploy')
 
 async function getGaslessProxy(hre:HardhatRuntimeEnvironment, daoAddr:string)
 {
-  const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-  const signers = await hre.ethers.getSigners();
-  const provider = signers[0].provider;
-  if( ! provider ) {
-    throw Error('Unknown provider for default signer!')
-  }
-  //const dao = DAOv1.connect(signers[0]).attach(daoAddr);
-  const dao = DAOv1.attach(daoAddr);
+  const dao = await hre.ethers.getContractAt('DAOv1', daoAddr);
   const gv_addr = await dao.proxyVoter();
-  const GaslessVoting = await hre.ethers.getContractFactory('GaslessVoting');
-  return GaslessVoting.attach(gv_addr);
+  return await hre.ethers.getContractAt('GaslessVoting', gv_addr);
 }
 
 task('gv-topup')
   .addPositionalParam('dao', 'DAO address')
-  .addOptionalParam('amount', 'Amount to topup [each/the] account', '0.1')
-  .addOptionalPositionalParam('kp', 'Keypair public address to topup')
+  .addOptionalParam('minimumTopup', 'Minimum topup amount to make', '0')
+  .addOptionalParam('min', 'Minimum balance of accounts (in ROSE)', '0')
+  .addFlag('dryrun', 'Perform a dry-run')
   .setAction(async (args, hre) => {
     const gv = await getGaslessProxy(hre, args.dao);
-    console.log('Getting address list');
-    const addrs = await gv.listAddresses();
-    if( args.kp ) {
-      if( addrs.indexOf(args.kp) == -1 ) {
-        throw new Error(`Unknown keypair: ${args.kp}`)
-      }
-    }
+    const min = hre.ethers.utils.parseEther(args.min);
+    const dryrun = args.dryrun;
+    const mintop = hre.ethers.utils.parseEther(args.minimumTopup);
 
-    for( const x of addrs ) {
-      console.log('  ', x);
+    for( const addr of await gv.listAddresses() )
+    {
+      const bal = await gv.provider.getBalance(addr);
+      console.log(addr, 'has', hre.ethers.utils.formatEther(bal), `ROSE (${bal} wei)`);
+
+      if( bal.lt(min) )
+      {
+        const diff = min.sub(bal);
+        if( diff.gte(mintop) )
+        {
+          console.log(' - needs', hre.ethers.utils.formatEther(diff), 'ROSE');
+          if( ! dryrun )
+          {
+            const tx = await gv.signer.sendTransaction({
+              to: addr,
+              data: "0x",
+              value: diff
+            });
+            console.log(' -', tx.hash);
+            tx.wait();
+            const newBal = await gv.provider.getBalance(addr);
+            console.log(' - new balance', hre.ethers.utils.formatEther(newBal), `ROSE (${newBal} wei)`);
+          }
+        }
+      }
     }
 });
 
 task('gv-newkp', 'Add a new KeyPair to gasless voting contract')
   .addPositionalParam('dao', 'DAO address')
-  .addPositionalParam('n', 'Number of keypairs to create', '1')
-  .addParam('amount', 'Amount to topup [each/the] new addresses', '0.1')
+  .addParam('n', 'Number of keypairs to create', '1')
+  .addParam('amount', 'Amount to topup [each/the] new addresses')
   .setAction(async (args, hre) => {
     const n = Number(args.n);
     if( n < 1 ) {
@@ -129,8 +156,10 @@ task('gv-newkp', 'Add a new KeyPair to gasless voting contract')
     for( let i = 0; i < n; i++ ) {
       const tx = await gv.addKeypair({value: value});
       const receipt = await tx.wait();
-      const addr = receipt.logs[0].data;
-      console.log(` - ${addr}`, hre.ethers.utils.formatEther(await gv.provider.getBalance(addr)));
+      const frag = gv.interface.getEvent('KeypairCreated');
+      const eventArgs = gv.interface.decodeEventLog(frag, receipt.logs[0].data);
+      const addr = eventArgs.addr;
+      console.log(` - ${addr}`, hre.ethers.utils.formatEther(await gv.provider.getBalance(addr)), 'ROSE');
     }
 });
 
@@ -161,8 +190,6 @@ task('whitelist-voters')
     await (await acl.setEligibleVoters(dao.address, (process.env.PROPOSAL_ID!.startsWith("0x")?"":"0x")+process.env.PROPOSAL_ID!, addresses)).wait();
   });
 
-const accounts = process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [];
-
 const TEST_HDWALLET = {
   mnemonic: "test test test test test test test test test test test junk",
   path: "m/44'/60'/0'/0",
@@ -170,6 +197,8 @@ const TEST_HDWALLET = {
   count: 20,
   passphrase: "",
 };
+
+const accounts = process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : TEST_HDWALLET;
 
 const config: HardhatUserConfig = {
   networks: {

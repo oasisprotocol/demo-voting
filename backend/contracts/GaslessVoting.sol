@@ -163,7 +163,7 @@ contract GaslessVoting is IERC165 {
     {
         uint kpl = keypairs.length;
 
-        address[] memory addrs = new address[](keypairs.length);
+        address[] memory addrs = new address[](kpl);
 
         for( uint i = 0; i < kpl; i++ )
         {
@@ -312,26 +312,6 @@ contract GaslessVoting is IERC165 {
             chainId: block.chainid
         }));
     }
-
-    /*
-    function submitEncryptedCreate(bytes32 ciphertextNonce, bytes memory data)
-        external
-    {
-        uint gas_start = gasleft();
-
-        EthereumKeypair storage kp = internal_keypairByAddress(msg.sender);
-
-        bytes memory plaintext = Sapphire.decrypt(encryptionSecret, ciphertextNonce, data, "");
-
-        ProposalParams memory request = abi.decode(plaintext, (ProposalParams));
-
-        DAO.createProposal(request);
-
-        kp.nonce += 1;
-
-        internal_reimburse(gas_start);
-    }
-    */
 
     function proxy(bytes32 ciphertextNonce, bytes memory data)
         external payable
