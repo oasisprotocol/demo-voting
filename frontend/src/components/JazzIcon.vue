@@ -9,7 +9,7 @@ const seed = computed(() => Number.parseInt(props.address.slice(2, 10), 16));
 
 const icon: Ref<HTMLDivElement> = ref(document.createElement('div'));
 
-watch([icon, seed], ([icon, seed]) => {
+watch([icon, seed, props], ([icon, seed, props]) => {
   const jazzicon = createJazzicon(props.size ?? 35, seed);
   icon.innerHTML = '';
   icon.appendChild(jazzicon);
