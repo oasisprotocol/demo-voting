@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { BytesLike } from "ethers";
+import { BytesLike, Contract } from "ethers";
 import { JsonRpcSigner, StaticJsonRpcProvider } from "@ethersproject/providers";
 
 import { DAOv1, ProposalParamsStruct } from "../typechain-types/contracts/DAOv1";
@@ -48,21 +48,16 @@ async function closeProposal(dao:DAOv1, proposalId:BytesLike) {
 }
 
 describe("DAOv1", function () {
-  async function deployDaoWithWhitelistACL(gaslessAddress?:string) {
-    const SimpleWhitelistACLv1_factory = await ethers.getContractFactory("SimpleWhitelistACLv1");
-    const whitelist = await SimpleWhitelistACLv1_factory.deploy();
-    await whitelist.deployed()
+  async function deployDao(gaslessAddress?:string, aclName?:string) {
+    let acl: Contract | undefined;
+    if (aclName) {
+      const ACLv1 = await ethers.getContractFactory(aclName);
+      acl = await ACLv1.deploy();
+      await acl.deployed()
+    }
 
     const DAOv1_factory = await ethers.getContractFactory("DAOv1");
-    const dao = await DAOv1_factory.deploy(whitelist.address, gaslessAddress ?? ethers.constants.AddressZero);
-    await dao.deployed();
-
-    return {dao, whitelist}
-  }
-
-  async function deployDao(gaslessAddress?:string) {
-    const DAOv1_factory = await ethers.getContractFactory("DAOv1");
-    const dao = await DAOv1_factory.deploy(ethers.constants.AddressZero, gaslessAddress ?? ethers.constants.AddressZero);
+    const dao = await DAOv1_factory.deploy(acl ? acl.address : ethers.constants.AddressZero, gaslessAddress ?? ethers.constants.AddressZero);
     await dao.deployed();
     return { dao };
   }
@@ -94,7 +89,7 @@ describe("DAOv1", function () {
   });
 
   it("Should cast vote on DAO with whitelist ACL", async function () {
-    const { dao } = await deployDaoWithWhitelistACL();
+    const { dao } = await deployDao(undefined, 'WhitelistVotersACLv1');
     const proposalId = await addProposal(dao, TEST_PROPOSALS[0]);
 
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(1);
