@@ -34,6 +34,22 @@ You can build assets for deployment by running:
 pnpm build
 ```
 
+#### Different Website Base
+
+If you will be running dApp on a non-root base dir, add
+
+```
+BASE_DIR=/my/public/path
+```
+
+to `.env.production` and bundle the app with
+
+```
+pnpm build-only --base=/my/public/path/
+```
+
+Then copy the `dist` folder to a place of your `/my/public/path` location.
+
 ### Local Development
 
 We use [Hardhat] and [Hardhat-deploy] to simplify development.
