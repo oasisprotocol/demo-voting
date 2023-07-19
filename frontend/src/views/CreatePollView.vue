@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ethers } from 'ethers';
 
 import { useDAOv1, useGaslessVoting, useUnwrappedDAOv1, useUnwrappedGaslessVoting } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
@@ -104,69 +103,20 @@ async function doCreatePoll(): Promise<string> {
 
   const gv = (await gaslessVoting).value;
   const ugv = (await unwrappedGaslessVoting).value;
-  if( gv && ugv ) {
-    console.log('doCreatePoll: Using GaslessVoting to create proposal');
 
-    if( ! eth.signer ) {
-      throw new Error('No signer!');
-    }
+  console.log('doCreatePoll: Using direct transaction to create proposal');
 
-    const creator = await eth.signer.getAddress();
+  // TODO: check if proposal already exists on the host chain and continue if so (idempotence)
+  //proposalId = await dao.value.callStatic.createProposal(proposalParams);
+  //console.log('doCreatePoll: creating proposal', proposalId);
 
-    // Sign Proposal
-    const signature = await eth.signer._signTypedData({
-      name: "DAOv1.GaslessVoting",
-      version: "1",
-      chainId: import.meta.env.VITE_NETWORK,
-      verifyingContract: gv.address
-    }, {
-      CreateProposal: [
-        { name: 'creator', type: "address" },
-        { name: 'ipfsHash', type: 'string' },
-        { name: 'numChoices', type: 'uint16' },
-        { name: 'publishVotes', type: 'bool' }
-      ]
-    }, {
-      creator: creator,
-      ipfsHash: proposalParams.ipfsHash,
-      numChoices: proposalParams.numChoices,
-      publishVotes: proposalParams.publishVotes
-    });
-    const rsv = ethers.utils.splitSignature(signature);
-
-    // Make the pre-signed transaction
-    //const nonce = await ugv.provider.getTransactionCount(await ugv.signerAddr());
-    const gasPrice = await ugv.provider.getGasPrice();
-    console.log('doCreatePoll: using gasPrice', gasPrice);
-    const tx = await ugv.makeProposalTransaction(gasPrice, creator, proposalParams, rsv);
-    console.log('doCreatePoll: Made Gasless CreateProposal Transaction', tx);
-
-    // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
-    let plain_resp = await eth.unwrappedProvider.sendTransaction(tx);
-    console.log('doCreatePoll: waiting for tx', plain_resp.hash);
-    const receipt = await ugv.provider.waitForTransaction(plain_resp.hash);
-
-    if (receipt.status !== 1) {
-      throw new Error('doCreatePoll: tx receipt reported failure.');
-    }
-
-    proposalId = receipt.logs[0].data;
+  const createProposalTx = await dao.value.createProposal(proposalParams);
+  console.log('doCreatePoll: creating proposal tx', createProposalTx.hash);
+  const receipt = await createProposalTx.wait();
+  if (receipt.status !== 1) {
+    throw new Error('createProposal tx receipt reported failure.');
   }
-  else {
-    console.log('doCreatePoll: Using direct transaction to create proposal');
-
-    // TODO: check if proposal already exists on the host chain and continue if so (idempotence)
-    proposalId = await dao.value.callStatic.createProposal(proposalParams);
-    console.log('doCreatePoll: creating proposal', proposalId);
-
-    // If Gasless Voting isn't supported, submit transaction directly
-    const createProposalTx = await dao.value.createProposal(proposalParams);
-    console.log('doCreatePoll: creating proposal tx', createProposalTx.hash);
-    const receipt = await createProposalTx.wait();
-    if (receipt.status !== 1) {
-      throw new Error('createProposal tx receipt reported failure.');
-    }
-  }
+  proposalId = receipt.logs[0].data;
 
   console.log('doCreatePoll: Proposal ID', proposalId);
 

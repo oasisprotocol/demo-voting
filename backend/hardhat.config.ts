@@ -68,6 +68,7 @@ task('deploy')
       gv = await GaslessVoting_factory.deploy(hre.ethers.constants.AddressZero, {value: funds});
       await gv.deployed();
       gv_address = gv.address;
+      console.log(`Deployed GaslessVoting proxy to ${gv_address}`);
     }
 
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
