@@ -164,23 +164,20 @@ task('gv-newkp', 'Add a new KeyPair to gasless voting contract')
     }
 });
 
-// Whitelist the voters for the poll in DAO using SimpleWhitelistACL.
-// Required env variables:
-// - PRIVATE_KEY: private key of the poll manager
-// - VITE_DAO_V1_ADDR: address of the DAO contract
-// - PROPOSAL_ID: ID of the poll
-// - VOTERS_FILE: path to the file containing eligible voters, one address per line
-task('whitelist-voters')
+task('whitelist-voters', 'Whitelist the poll voters for DAOs using WhitelistVotersACLv1. PRIVATE_KEY env variable should hold the private key of the poll manager.')
+  .addPositionalParam('dao', 'DAO address')
+  .addPositionalParam('pollId', 'poll ID')
+  .addPositionalParam('votersFile', 'file with eligible voters addresses, one per line')
   .setAction(async (args, hre) => {
     await hre.run('compile');
 
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = DAOv1.attach(process.env.VITE_DAO_V1_ADDR!);
+    const dao = DAOv1.attach(args.dao);
     const signer = new hre.ethers.Wallet(process.env.PRIVATE_KEY!, hre.ethers.provider);
     const ACLv1 = await hre.ethers.getContractFactory('SimpleWhitelistACLv1');
     const acl = ACLv1.attach(await dao.getACL()).connect(signer);
 
-    let file = await fs.readFile(process.env.VOTERS_FILE!);
+    let file = await fs.readFile(args.voters_file);
     const addrRaw = file.toString().split("\n");
     let addresses: string[] = [];
     for(const i in addrRaw) {
@@ -188,7 +185,7 @@ task('whitelist-voters')
         addresses.push(addrRaw[i]);
       }
     }
-    await (await acl.setEligibleVoters(dao.address, (process.env.PROPOSAL_ID!.startsWith("0x")?"":"0x")+process.env.PROPOSAL_ID!, addresses)).wait();
+    await (await acl.setEligibleVoters(dao.address, (args.poll_id.startsWith("0x")?"":"0x")+args.poll_id, addresses)).wait();
   });
 
 const TEST_HDWALLET = {
