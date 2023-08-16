@@ -8,7 +8,7 @@ import {PollACLv1, ProposalId} from "./Types.sol"; // solhint-disable-line no-gl
 //
 // ACL rules:
 // - anyone can create a poll
-// - anyone can manad and close the poll
+// - anyone can manage and close the poll
 // - anyone can vote on any ballot
 contract AllowAllACLv1 is PollACLv1 {
     function canCreatePoll(address, address)
