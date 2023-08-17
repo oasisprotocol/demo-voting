@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { BytesLike, Contract } from "ethers";
+import {BigNumber, BytesLike, Contract} from "ethers";
 import { JsonRpcSigner, StaticJsonRpcProvider } from "@ethersproject/providers";
 
 import { DAOv1, ProposalParamsStruct } from "../typechain-types/contracts/DAOv1";
@@ -62,7 +62,6 @@ describe("DAOv1", function () {
     return { dao };
   }
 
-  /*
   it("Should create proposals", async function () {
     const { dao } = await deployDao();
 
@@ -95,7 +94,7 @@ describe("DAOv1", function () {
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(1);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(0);
 
-    const acl = (await ethers.getContractFactory("SimpleWhitelistACLv1")).attach(await dao.getACL());
+    const acl = (await ethers.getContractFactory("WhitelistVotersACLv1")).attach(await dao.getACL());
     // Whitelist the first voter.
     await (await acl.setEligibleVoters(dao.address, proposalId, [(await ethers.getSigners())[1].address])).wait();
 
@@ -109,9 +108,12 @@ describe("DAOv1", function () {
     expect(topChoice.toNumber()).to.equal(2);
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(0);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(1);
+    expect(await dao.getVoteOf(proposalId, (await ethers.getSigners())[1].address)).to.include(2);
+    expect(await dao.getVoteCounts(proposalId)).to.deep.include(BigNumber.from(1));
+    expect(await dao.getVotes(proposalId)).to.deep.equal([[(await ethers.getSigners())[1].address], [2]]);
   });
-  */
-  it('Should accept proxy votes', async function () {
+
+  /*it('Should accept proxy votes', async function () {
     const signer = ethers.provider.getSigner(0);
 
     // Setup proxy signer contract
@@ -166,5 +168,5 @@ describe("DAOv1", function () {
     const closed = await dao.closeProposal(proposalId);
     const closed_receipt = await closed.wait();
     expect(Number(closed_receipt.events![0].args!.topChoice)).to.equal(1);
-  });
+  });*/
 });

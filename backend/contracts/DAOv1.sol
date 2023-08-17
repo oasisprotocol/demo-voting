@@ -17,6 +17,7 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
     error AlreadyVoted();
     error UnknownChoice();
     error NotActive();
+    error StillActive();
 
     event ProposalCreated(ProposalId id);
     event ProposalClosed(ProposalId indexed id, uint256 topChoice);
@@ -42,6 +43,8 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
     struct Ballot {
         /// voter -> choice id
         mapping(address => Choice) votes;
+        /// list of voters that submitted their vote
+        address[] voters;
         /// choice id -> vote
         uint256[MAX_CHOICES] voteCounts;
     }
@@ -145,6 +148,10 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
             : 0;
         }
 
+        if (proposal.params.publishVotes && !existingVote.exists)
+        {
+            ballot.voters.push(voter);
+        }
         ballot.votes[voter].exists = true;
         ballot.votes[voter].choice = choiceId;
     }
@@ -207,7 +214,6 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
             }
         }
 
-        delete _ballots[proposalId];
         proposals[proposalId].topChoice = uint8(topChoice);
         proposals[proposalId].active = false;
         activeProposals.remove(ProposalId.unwrap(proposalId));
@@ -220,13 +226,42 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
         returns (Choice memory)
     {
         Proposal storage proposal = proposals[proposalId];
-
-        if (!proposal.active) revert NotActive();
         Ballot storage ballot = _ballots[proposalId];
 
         if (voter == msg.sender) return ballot.votes[msg.sender];
         if (!proposal.params.publishVotes) revert NotPublishingVotes();
         return ballot.votes[voter];
+    }
+
+    function getVoteCounts(ProposalId proposalId)
+        external view
+        returns (uint256[] memory)
+    {
+        Proposal storage proposal = proposals[proposalId];
+        Ballot storage ballot = _ballots[proposalId];
+
+        if (proposal.active) revert StillActive();
+        uint256[] memory unmaskedVoteCounts = new uint256[](MAX_CHOICES);
+        for (uint256 i; i<unmaskedVoteCounts.length; i++) {
+            unmaskedVoteCounts[i] = ballot.voteCounts[i] & ~(uint256(1 << 255));
+        }
+        return unmaskedVoteCounts;
+    }
+
+    function getVotes(ProposalId proposalId)
+        external view
+        returns (address[] memory, uint8[] memory) {
+        Proposal storage proposal = proposals[proposalId];
+        Ballot storage ballot = _ballots[proposalId];
+
+        if (!proposal.params.publishVotes) revert NotPublishingVotes();
+        if (proposal.active) revert StillActive();
+
+        uint8[] memory choices = new uint8[](ballot.voters.length);
+        for (uint256 i; i<ballot.voters.length; i++) {
+            choices[i] = this.getVoteOf(proposalId, ballot.voters[i]).choice;
+        }
+        return (ballot.voters, choices);
     }
 
     function ballotIsActive(ProposalId id)

@@ -31,6 +31,8 @@ const poll = ref<DAOv1.ProposalWithIdStructOutput & { ipfsParams: Poll }>();
 const winningChoice = ref<number | undefined>(undefined);
 const selectedChoice = ref<number | undefined>();
 const existingVote = ref<number | undefined>(undefined);
+const voteCounts = ref<BigNumber[]>([]);
+const votes = ref<[string[], number[]]>([[], []]);
 let canClosePoll = ref<Boolean>(false);
 let canAclVote = ref<Boolean>(false);
 
@@ -42,7 +44,11 @@ let canAclVote = ref<Boolean>(false);
   // TODO: redirect to 404
   poll.value = { proposal, ipfsParams } as any;
   if (!proposal.active) {
+    voteCounts.value = await uwdao.value.callStatic.getVoteCounts(proposalId);
     selectedChoice.value = winningChoice.value = proposal.topChoice;
+    if (proposal.params.publishVotes) {
+      votes.value = await uwdao.value.callStatic.getVotes(proposalId);
+    }
   }
 
   const acl = await useUnwrappedPollACLv1();
@@ -202,12 +208,24 @@ onMounted(() => {
               <CheckedIcon v-if="selectedChoice === choiceId || choiceId === winningChoice" />
               <UncheckedIcon v-else />
               <span class="leading-6">{{ choice }}</span>
+              <span class="leading-6" v-if="!poll.proposal.active">({{ voteCounts[choiceId] }})</span>
             </span>
           </AppButton>
         </div>
-        <p v-if="poll?.ipfsParams.options.publishVotes" class="text-white text-base mt-10">
+        <p v-if="poll?.ipfsParams.options.publishVotes && poll.proposal.active" class="text-white text-base mt-10">
           Votes will be made public after voting has ended.
         </p>
+        <div v-if="poll?.ipfsParams.options.publishVotes && !poll.proposal.active" class="capitalize text-white text-2xl font-bold mt-10">
+          <label class="inline-block mb-5">Individual votes</label>
+          <p
+              v-for="(addr, i) in votes[0]"
+              :key="i"
+              class="text-white text-base"
+              variant="addr"
+          >
+            {{ addr }}: {{ poll.ipfsParams.choices[votes[1][i]] }}
+          </p>
+        </div>
         <AppButton
           v-if="poll?.proposal?.active"
           type="submit"
@@ -243,7 +261,9 @@ onMounted(() => {
         </span>
       </AppButton>
 
-      <p class="text-white text-center text-base mb-24">Your vote will be published after voting has ended.</p>
+      <p v-if="poll?.ipfsParams.options.publishVotes" class="text-white text-center text-base mb-24">
+        Your vote will be published after voting has ended.
+      </p>
 
       <RouterLink to="/">
         <AppButton variant="secondary">Go to overview</AppButton>
