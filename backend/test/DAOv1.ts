@@ -85,6 +85,9 @@ describe("DAOv1", function () {
     expect(topChoice.toNumber()).to.equal(2);
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(0);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(1);
+    expect(await dao.getVoteOf(proposalId, (await ethers.getSigners())[0].address)).to.include(2);
+    expect(await dao.getVoteCounts(proposalId)).to.deep.include(BigNumber.from(1));
+    expect(await dao.getVotes(proposalId)).to.deep.equal([[(await ethers.getSigners())[0].address], [2]]);
   });
 
   it("Should cast vote on DAO with whitelist ACL", async function () {
@@ -113,13 +116,20 @@ describe("DAOv1", function () {
     expect(await dao.getVotes(proposalId)).to.deep.equal([[(await ethers.getSigners())[1].address], [2]]);
   });
 
-  /*it('Should accept proxy votes', async function () {
+  it('Should accept proxy votes', async function () {
+    // This test requires RNG and runs on the Sapphire network only.
+    // You can set up sapphire-dev image and run the test like this:
+    // docker run -it -p8545:8545 -p8546:8546 ghcr.io/oasisprotocol/sapphire-dev -to 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    // npx hardhat test --grep proxy --network sapphire-localnet
+    if ((await ethers.provider.getNetwork()).chainId == 1337) {
+      this.skip();
+    }
     const signer = ethers.provider.getSigner(0);
 
     // Setup proxy signer contract
     console.log('    - Deploying GaslessVoting');
     const GaslessVoting_factory = await ethers.getContractFactory('GaslessVoting');
-    const gv = await GaslessVoting_factory.deploy(await signer.getAddress(), {value: ethers.utils.parseEther('1')});
+    const gv = await GaslessVoting_factory.deploy(signer.getAddress(), {value: ethers.utils.parseEther('1')});
     await gv.deployed();
     console.log('      =', gv.address);
 
@@ -168,5 +178,5 @@ describe("DAOv1", function () {
     const closed = await dao.closeProposal(proposalId);
     const closed_receipt = await closed.wait();
     expect(Number(closed_receipt.events![0].args!.topChoice)).to.equal(1);
-  });*/
+  });
 });
