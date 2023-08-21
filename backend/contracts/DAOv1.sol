@@ -4,9 +4,10 @@ pragma solidity ^0.8.0;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./Types.sol"; // solhint-disable-line no-global-import
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import "./AllowAllACLv1.sol"; // solhint-disable-line no-global-import
 
-contract DAOv1 {
+contract DAOv1 is IERC165, AcceptsProxyVotes {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     error AlreadyExists();
@@ -16,6 +17,7 @@ contract DAOv1 {
     error AlreadyVoted();
     error UnknownChoice();
     error NotActive();
+    error StillActive();
 
     event ProposalCreated(ProposalId id);
     event ProposalClosed(ProposalId indexed id, uint256 topChoice);
@@ -41,21 +43,43 @@ contract DAOv1 {
     struct Ballot {
         /// voter -> choice id
         mapping(address => Choice) votes;
+        /// list of voters that submitted their vote
+        address[] voters;
         /// choice id -> vote
         uint256[MAX_CHOICES] voteCounts;
     }
 
     // Confidential storage.
     mapping(ProposalId => Ballot) private _ballots;
+    PollACLv1 private immutable acl;
 
     // Public storage.
-    PollACLv1 public immutable acl;
+    address public proxyVoter;
     mapping(ProposalId => Proposal) public proposals;
     EnumerableSet.Bytes32Set private activeProposals; // NB: Recursive structs cannot be public.
     ProposalId[] public pastProposals;
 
-    constructor(PollACLv1 a) {
-        acl = (address(a) == address(0)) ? new AllowAllACLv1() : a;
+    constructor(PollACLv1 in_acl, address in_proxyVoter)
+    {
+        acl = (address(in_acl) == address(0)) ? new AllowAllACLv1() : in_acl;
+
+        proxyVoter = in_proxyVoter;
+    }
+
+    function supportsInterface(bytes4 interfaceID)
+        external pure
+        returns (bool)
+    {
+        return interfaceID == 0x01ffc9a7                // ERC-165
+            || interfaceID == this.castVote.selector    // DAOv1
+            || interfaceID == this.proxyVote.selector;  // AcceptsProxyVotes
+    }
+
+    function getACL()
+        external view
+        returns (PollACLv1)
+    {
+        return acl;
     }
 
     function createProposal(ProposalParams calldata _params)
@@ -100,17 +124,17 @@ contract DAOv1 {
         }
     }
 
-    function castVote(ProposalId proposalId, uint256 choiceIdBig)
-        external
+    function internal_castVote(address voter, ProposalId proposalId, uint256 choiceIdBig)
+        internal
     {
-        if (!acl.canVoteOnPoll(address(this), proposalId, msg.sender)) revert PollACLv1.VoteNotAllowed();
+        if (!acl.canVoteOnPoll(address(this), proposalId, voter)) revert PollACLv1.VoteNotAllowed();
 
         Proposal storage proposal = proposals[proposalId];
         if (!proposal.active) revert NotActive();
         Ballot storage ballot = _ballots[proposalId];
         uint8 choiceId = uint8(choiceIdBig & 0xff);
         if (choiceId >= proposal.params.numChoices) revert UnknownChoice();
-        Choice memory existingVote = ballot.votes[msg.sender];
+        Choice memory existingVote = ballot.votes[voter];
 
         // 1 click 1 vote.
         for (uint256 i; i < proposal.params.numChoices; ++i)
@@ -124,8 +148,31 @@ contract DAOv1 {
             : 0;
         }
 
-        ballot.votes[msg.sender].exists = true;
-        ballot.votes[msg.sender].choice = choiceId;
+        if (proposal.params.publishVotes && !existingVote.exists)
+        {
+            ballot.voters.push(voter);
+        }
+        ballot.votes[voter].exists = true;
+        ballot.votes[voter].choice = choiceId;
+    }
+
+    /**
+     * Allow the designated proxy voting contract to vote on behalf of a voter
+     */
+    function proxyVote(address voter, ProposalId proposalId, uint256 choiceIdBig)
+        external
+    {
+        require( msg.sender != address(0), "TX must be signed" );
+
+        require( msg.sender == proxyVoter, "Cannot call proxyVote directly" );
+
+        internal_castVote(voter, proposalId, choiceIdBig);
+    }
+
+    function castVote(ProposalId proposalId, uint256 choiceIdBig)
+        external
+    {
+        internal_castVote(msg.sender, proposalId, choiceIdBig);
     }
 
     function getPastProposals(uint256 _offset, uint256 _count)
@@ -167,7 +214,6 @@ contract DAOv1 {
             }
         }
 
-        delete _ballots[proposalId];
         proposals[proposalId].topChoice = uint8(topChoice);
         proposals[proposalId].active = false;
         activeProposals.remove(ProposalId.unwrap(proposalId));
@@ -180,13 +226,42 @@ contract DAOv1 {
         returns (Choice memory)
     {
         Proposal storage proposal = proposals[proposalId];
-
-        if (!proposal.active) revert NotActive();
         Ballot storage ballot = _ballots[proposalId];
 
         if (voter == msg.sender) return ballot.votes[msg.sender];
         if (!proposal.params.publishVotes) revert NotPublishingVotes();
         return ballot.votes[voter];
+    }
+
+    function getVoteCounts(ProposalId proposalId)
+        external view
+        returns (uint256[] memory)
+    {
+        Proposal storage proposal = proposals[proposalId];
+        Ballot storage ballot = _ballots[proposalId];
+
+        if (proposal.active) revert StillActive();
+        uint256[] memory unmaskedVoteCounts = new uint256[](MAX_CHOICES);
+        for (uint256 i; i<unmaskedVoteCounts.length; i++) {
+            unmaskedVoteCounts[i] = ballot.voteCounts[i] & ~(uint256(1 << 255));
+        }
+        return unmaskedVoteCounts;
+    }
+
+    function getVotes(ProposalId proposalId)
+        external view
+        returns (address[] memory, uint8[] memory) {
+        Proposal storage proposal = proposals[proposalId];
+        Ballot storage ballot = _ballots[proposalId];
+
+        if (!proposal.params.publishVotes) revert NotPublishingVotes();
+        if (proposal.active) revert StillActive();
+
+        uint8[] memory choices = new uint8[](ballot.voters.length);
+        for (uint256 i; i<ballot.voters.length; i++) {
+            choices[i] = this.getVoteOf(proposalId, ballot.voters[i]).choice;
+        }
+        return (ballot.voters, choices);
     }
 
     function ballotIsActive(ProposalId id)

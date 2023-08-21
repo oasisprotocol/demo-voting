@@ -1,6 +1,8 @@
-export { DAOv1 } from '../typechain-types/DAOv1';
-export { DAOv1__factory } from '../typechain-types/factories/DAOv1__factory';
-export { PollACLv1 } from '../typechain-types/PollACLv1';
-export { PollACLv1__factory } from '../typechain-types/factories/PollACLv1__factory';
-export { SimpleWhitelistACLv1 } from '../typechain-types/SimpleWhitelistACLv1';
-export { SimpleWhitelistACLv1__factory } from '../typechain-types/factories/SimpleWhitelistACLv1__factory';
+export {
+    DAOv1, DAOv1__factory,
+    PollACLv1, PollACLv1__factory,
+    WhitelistVotersACLv1, WhitelistVotersACLv1__factory,
+    AllowAllACLv1, AllowAllACLv1__factory,
+    AllowVotersACLv1, AllowVotersACLv1__factory,
+    GaslessVoting, GaslessVoting__factory
+} from "../typechain-types"

@@ -4,7 +4,7 @@ import { onMounted, ref, shallowRef } from 'vue';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import { useDAOv1, usePollACLv1 } from '../contracts';
+import { useDAOv1, useUnwrappedPollACLv1, useUnwrappedDAOv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppPoll from '@/components/AppPoll.vue';
@@ -12,6 +12,7 @@ import PollLoader from '@/components/PollLoader.vue';
 
 const eth = useEthereumStore();
 const dao = useDAOv1();
+const uwdao = useUnwrappedDAOv1();
 
 type FullProposal = DAOv1.ProposalWithIdStructOutput & { params: Poll };
 const activePolls = shallowRef<Record<string, FullProposal>>({});
@@ -56,7 +57,7 @@ async function fetchProposals(
 }
 
 onMounted(async () => {
-  const acl = await usePollACLv1();
+  const acl = await useUnwrappedPollACLv1();
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
   canCreatePoll.value = await acl.value.callStatic.canCreatePoll(dao.value.address, userAddress);
 
@@ -64,7 +65,7 @@ onMounted(async () => {
 
   await Promise.all([
     fetchProposals((offset, batchSize) =>
-      dao.value.callStatic.getActiveProposals(offset, batchSize, {
+      uwdao.value.callStatic.getActiveProposals(offset, batchSize, {
         blockTag,
       }),
     ).then((proposalsMap) => {
@@ -72,7 +73,7 @@ onMounted(async () => {
       isLoadingActive.value = false;
     }),
     fetchProposals((offset, batchSize) => {
-      return dao.value.callStatic.getPastProposals(offset, batchSize, {
+      return uwdao.value.callStatic.getPastProposals(offset, batchSize, {
         blockTag,
       });
     }).then((proposalsMap) => {
@@ -86,7 +87,7 @@ onMounted(async () => {
 <template>
   <section class="pt-5">
     <h2 class="capitalize text-white text-2xl font-bold mb-4">Poll overview</h2>
-    <p class="text-white text-base mb-20">Bellow is your overview of your active and past pools</p>
+    <p class="text-white text-base mb-20">Bellow is your overview of your active and past polls</p>
 
     <div v-if="canCreatePoll" class="flex justify-end mb-6">
       <RouterLink to="polls">
@@ -94,7 +95,7 @@ onMounted(async () => {
       </RouterLink>
     </div>
 
-    <h2 class="capitalize text-white text-2xl font-bold mb-6">Active pools</h2>
+    <h2 class="capitalize text-white text-2xl font-bold mb-6">Active Polls</h2>
 
     <div v-if="!isLoadingActive">
       <AppPoll
@@ -117,10 +118,10 @@ onMounted(async () => {
       v-if="!isLoadingActive && Object.keys(activePolls).length <= 0"
       class="text-white text-center mb-6 font-normal"
     >
-      You currently have no active pools
+      You currently have no active polls
     </p>
 
-    <h2 class="capitalize text-white text-2xl font-bold mb-6">Past pools</h2>
+    <h2 class="capitalize text-white text-2xl font-bold mb-6">Past Polls</h2>
 
     <div v-if="!isLoadingPast">
       <AppPoll
@@ -144,7 +145,7 @@ onMounted(async () => {
       v-if="!isLoadingPast && Object.keys(pastPolls).length <= 0"
       class="text-white text-center font-normal"
     >
-      You currently have no past pools
+      You currently have no past polls
     </p>
   </section>
 </template>

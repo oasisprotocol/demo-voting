@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-import { useDAOv1 } from '../contracts';
+import { useDAOv1, useGaslessVoting, useUnwrappedDAOv1, useUnwrappedGaslessVoting } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import type { Poll } from '../../../functions/api/types';
 import AppButton from '@/components/AppButton.vue';
@@ -11,6 +11,9 @@ import SuccessInfo from '@/components/SuccessInfo.vue';
 
 const eth = useEthereumStore();
 const dao = useDAOv1();
+const uwdao = useUnwrappedDAOv1();
+const gaslessVoting = useGaslessVoting();
+const unwrappedGaslessVoting = useUnwrappedGaslessVoting();
 
 const pinBody = async (jwt: string, poll: Poll) => {
   const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
@@ -74,6 +77,7 @@ async function doCreatePoll(): Promise<string> {
   await eth.connect();
   await eth.switchNetwork(Network.FromConfig);
   if (errors.value.length > 0) return '';
+
   const poll: Poll = {
     creator: eth.address!,
     name: pollName.value,
@@ -88,25 +92,41 @@ async function doCreatePoll(): Promise<string> {
   const resJson = await res.json();
   if (res.status !== 201) throw new Error(resJson.error);
   const ipfsHash = resJson.ipfsHash;
+
   const proposalParams = {
     ipfsHash,
     numChoices: choices.value.length,
     publishVotes: poll.options.publishVotes,
   };
+
+  let proposalId : string;
+
+  const gv = (await gaslessVoting).value;
+  const ugv = (await unwrappedGaslessVoting).value;
+
+  console.log('doCreatePoll: Using direct transaction to create proposal');
+
   // TODO: check if proposal already exists on the host chain and continue if so (idempotence)
-  const proposalId = await dao.value.callStatic.createProposal(proposalParams);
-  console.log('creating proposal');
+  //proposalId = await dao.value.callStatic.createProposal(proposalParams);
+  //console.log('doCreatePoll: creating proposal', proposalId);
+
   const createProposalTx = await dao.value.createProposal(proposalParams);
-  console.log('creating proposal in', createProposalTx.hash);
-  if ((await createProposalTx.wait()).status !== 1)
+  console.log('doCreatePoll: creating proposal tx', createProposalTx.hash);
+  const receipt = await createProposalTx.wait();
+  if (receipt.status !== 1) {
     throw new Error('createProposal tx receipt reported failure.');
+  }
+  proposalId = receipt.logs[0].data;
+
+  console.log('doCreatePoll: Proposal ID', proposalId);
+
   let isActive = false;
   while (!isActive) {
-    console.log('checking if ballot has been created on Sapphire');
-    isActive = await dao.value.callStatic.ballotIsActive(proposalId);
+    console.log('doCreatePoll: checking if ballot has been created on Sapphire', proposalId);
+    isActive = await uwdao.value.callStatic.ballotIsActive(proposalId!);
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  return proposalId.replace('0x', '');
+  return proposalId!.replace('0x', '');
 }
 </script>
 
