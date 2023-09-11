@@ -146,7 +146,7 @@ export const useEthereumStore = defineStore('ethereum', () => {
                   'https://testnet.sapphire.oasis.dev/',
                   'wss://testnet.sapphire.oasis.dev/ws',
                 ],
-                blockExplorerUrls: ['https://testnet.explorer.sapphire.oasis.dev'],
+                blockExplorerUrls: ['https://explorer.stg.oasis.io/testnet/sapphire'],
               },
             ],
           });
@@ -167,7 +167,7 @@ export const useEthereumStore = defineStore('ethereum', () => {
                   decimals: 18,
                 },
                 rpcUrls: ['https://sapphire.oasis.io/', 'wss://sapphire.oasis.io/ws'],
-                blockExplorerUrls: ['https://explorer.sapphire.oasis.io'],
+                blockExplorerUrls: ['https://explorer.stg.oasis.io/mainnet/sapphire'],
               },
             ],
           });
