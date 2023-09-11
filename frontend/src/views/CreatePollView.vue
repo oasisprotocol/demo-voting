@@ -106,7 +106,7 @@ async function doCreatePoll(): Promise<string> {
 
   console.log('doCreatePoll: Proposal ID', proposalId);
 
-  return retry<ReturnType<typeof uwdao.callStatic.ballotIsActive>>(
+  return retry<ReturnType<typeof dao.value.ballotIsActive>>(
     uwdao.value.callStatic.ballotIsActive(proposalId),
     (isActive) => {
       if (!isActive) {
