@@ -275,15 +275,12 @@ onMounted(async () => {
         </span>
       </AppButton>
 
-      <p class="text-white text-base mb-4" v-if="isClosed">The poll has been closed.</p>
-
       <p
         v-if="poll?.ipfsParams.options.publishVotes"
         class="text-white text-center text-base mb-24"
       >
         Your vote will be published after voting has ended.
       </p>
-      >
 
       <RouterLink to="/">
         <AppButton variant="secondary">Go to overview</AppButton>
