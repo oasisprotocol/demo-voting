@@ -78,13 +78,20 @@ export const useEthereumStore = defineStore('ethereum', () => {
   const address = ref<string | undefined>(undefined);
   const status = ref(ConnectionStatus.Unknown);
 
-  async function connect() {
-    if (signer.value) return;
+  async function getEthereumProvider() {
     const ethProvider = await detectEthereumProvider();
 
     if (!window.ethereum || ethProvider !== window.ethereum) {
       throw new MetaMaskNotInstalledError('MetaMask not installed!');
     }
+
+    return ethProvider;
+  }
+
+  async function connect() {
+    if (signer.value) return;
+
+    const ethProvider = await getEthereumProvider();
 
     const s = new ethers.providers.Web3Provider(ethProvider).getSigner();
     await s.provider.send('eth_requestAccounts', []);
@@ -197,5 +204,15 @@ export const useEthereumStore = defineStore('ethereum', () => {
     }
   }
 
-  return { unwrappedSigner, signer, unwrappedProvider, provider, address, network, connect, switchNetwork };
+  return {
+    unwrappedSigner,
+    signer,
+    unwrappedProvider,
+    provider,
+    address,
+    network,
+    getEthereumProvider,
+    connect,
+    switchNetwork,
+  };
 });

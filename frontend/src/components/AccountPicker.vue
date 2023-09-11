@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Network, networkName, useEthereumStore } from '../stores/ethereum';
 import JazzIcon from './JazzIcon.vue';
@@ -13,7 +13,7 @@ const netName = computed(() => networkName(eth.network));
 const unkNet = computed(() => eth.network === Network.Unknown);
 
 const connecting = ref(false);
-const isMetaMaskInstalled = ref(true);
+const isMetaMaskInstalled = ref(false);
 
 async function connectWallet() {
   if (!isMetaMaskInstalled.value) {
@@ -37,11 +37,25 @@ async function connectWallet() {
 }
 
 const isXlScreen = useMedia('(min-width: 1280px)');
+
+onMounted(async () => {
+  try {
+    await eth.getEthereumProvider();
+  } catch (err) {
+    if (!(err instanceof MetaMaskNotInstalledError)) {
+      throw err;
+    } else {
+      isMetaMaskInstalled.value = false;
+    }
+  } finally {
+    isMetaMaskInstalled.value = true;
+  }
+});
 </script>
 
 <template>
   <button
-    :class="{ 'cursor-default': !!eth.address, 'cursor-pointer': !isMetaMaskInstalled }"
+    :class="{ 'cursor-default': !!eth.address, 'cursor-pointer': !eth.address || !isMetaMaskInstalled }"
     class="account-picker"
     @click="connectWallet"
   >
