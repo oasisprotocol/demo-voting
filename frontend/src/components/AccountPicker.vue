@@ -40,7 +40,11 @@ const isXlScreen = useMedia('(min-width: 1280px)');
 </script>
 
 <template>
-  <div :class="{ 'cursor-default': !!eth.address }" class="account-picker" @click="connectWallet">
+  <button
+    :class="{ 'cursor-default': !!eth.address, 'cursor-pointer': !isMetaMaskInstalled }"
+    class="account-picker"
+    @click="connectWallet"
+  >
     <span class="account-picker-content" v-if="!connecting && eth.address">
       <JazzIcon :size="isXlScreen ? 60 : 30" :address="eth.address" />
       <span class="font-mono font-bold">
@@ -61,7 +65,7 @@ const isXlScreen = useMedia('(min-width: 1280px)');
         <span v-else>Connect Wallet</span>
       </span>
     </span>
-  </div>
+  </button>
 </template>
 
 <style lang="postcss" scoped>
