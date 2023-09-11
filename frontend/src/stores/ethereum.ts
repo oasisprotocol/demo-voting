@@ -114,7 +114,10 @@ export const useEthereumStore = defineStore('ethereum', () => {
       setSigner(accounts[0], network.value);
     });
     ethProvider.on('chainChanged', (chainId) => {
-      setSigner(address.value, networkFromChainId(chainId));
+      // setSigner(address.value, networkFromChainId(chainId));
+
+      // TODO: Dirty fix, reload the app to ensure the state resets after chain switch
+      window.location.reload();
     });
     ethProvider.on('connect', () => (status.value = ConnectionStatus.Connected));
     ethProvider.on('disconnect', () => (status.value = ConnectionStatus.Disconnected));

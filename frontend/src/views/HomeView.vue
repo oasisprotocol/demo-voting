@@ -5,7 +5,7 @@ import { onMounted, ref, shallowRef } from 'vue';
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
 import { useDAOv1, useUnwrappedPollACLv1, useUnwrappedDAOv1 } from '../contracts';
-import { useEthereumStore } from '../stores/ethereum';
+import { Network, useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppPoll from '@/components/AppPoll.vue';
 import PollLoader from '@/components/PollLoader.vue';
@@ -56,6 +56,9 @@ async function fetchProposals(
 }
 
 onMounted(async () => {
+  await eth.connect();
+  await eth.switchNetwork(Network.FromConfig);
+
   const acl = await useUnwrappedPollACLv1();
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
   canCreatePoll.value = await acl.value.callStatic.canCreatePoll(dao.value.address, userAddress);
