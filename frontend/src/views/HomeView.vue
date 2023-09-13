@@ -26,7 +26,6 @@ async function fetchProposals(
 ): Promise<Record<string, FullProposal>> {
   const proposalsMap: Record<string, FullProposal> = {};
 
-  await eth.switchNetwork(Network.FromConfig);
   const batchSize = 100;
   for (let offset = 0; ; offset += batchSize) {
     let proposals: DAOv1.ProposalWithIdStructOutput[] = [];
@@ -57,6 +56,9 @@ async function fetchProposals(
 }
 
 onMounted(async () => {
+  await eth.connect();
+  await eth.switchNetwork(Network.FromConfig);
+
   const acl = await useUnwrappedPollACLv1();
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
   canCreatePoll.value = await acl.value.callStatic.canCreatePoll(dao.value.address, userAddress);

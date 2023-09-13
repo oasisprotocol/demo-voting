@@ -1,13 +1,20 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
-import { useDAOv1, useGaslessVoting, useUnwrappedDAOv1, useUnwrappedGaslessVoting } from '../contracts';
+import {
+  useDAOv1,
+  useGaslessVoting,
+  useUnwrappedDAOv1,
+  useUnwrappedGaslessVoting,
+} from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import type { Poll } from '../../../functions/api/types';
 import AppButton from '@/components/AppButton.vue';
 import RemoveIcon from '@/components/RemoveIcon.vue';
 import AddIcon from '@/components/AddIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
+import { PinataApi } from '@/utils/pinata-api';
+import { retry } from '@/utils/promise';
 
 const eth = useEthereumStore();
 const dao = useDAOv1();
@@ -15,43 +22,25 @@ const uwdao = useUnwrappedDAOv1();
 const gaslessVoting = useGaslessVoting();
 const unwrappedGaslessVoting = useUnwrappedGaslessVoting();
 
-const pinBody = async (jwt: string, poll: Poll) => {
-  const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${jwt}`,
-    },
-    body: JSON.stringify({
-      pinataContent: poll,
-    }),
-  });
-  const resBody: any = await res.json();
-  if (res.status !== 200) throw new Error('failed to pin');
-  const resp = { ipfsHash: resBody.IpfsHash };
-  return new Response(JSON.stringify(resp), {
-    status: 201,
-    headers: { 'content-type': 'application/json' },
-  });
-};
-
 const errors = ref<string[]>([]);
 const pollName = ref('');
 const pollDesc = ref('');
-const choices = ref<Array<{ key: number; value: string }>>([]);
+const choices = ref<Array<{ key: number; value: string }>>(
+  Array.from({ length: 3 }, (_, key) => ({
+    key,
+    value: '',
+  })),
+);
 const publishVotes = ref(false);
 const isLoading = ref(false);
 const proposalId = ref('');
 
-let choiceCount = 0; // a monotonic counter for use as :key
+let choiceCount = 3;
 const removeChoice = (i: number) => choices.value.splice(i, 1);
 const addChoice = () => {
   choices.value.push({ key: choiceCount, value: '' });
   choiceCount++;
 };
-addChoice();
-addChoice();
-addChoice();
 
 async function createPoll(e: Event): Promise<void> {
   if (e.target instanceof HTMLFormElement) {
@@ -63,8 +52,6 @@ async function createPoll(e: Event): Promise<void> {
     errors.value.splice(0, errors.value.length);
     isLoading.value = true;
     proposalId.value = await doCreatePoll();
-    // if (!proposalId) return;
-    // router.push({ name: 'poll', params: { id: proposalId } });
   } catch (e: any) {
     errors.value.push(`Failed to create poll: ${e.message ?? JSON.stringify(e)}`);
     console.error(e);
@@ -74,8 +61,6 @@ async function createPoll(e: Event): Promise<void> {
 }
 
 async function doCreatePoll(): Promise<string> {
-  await eth.connect();
-  await eth.switchNetwork(Network.FromConfig);
   if (errors.value.length > 0) return '';
 
   const poll: Poll = {
@@ -88,7 +73,7 @@ async function doCreatePoll(): Promise<string> {
     },
   };
 
-  const res = await pinBody(import.meta.env.VITE_PINATA_JWT!, poll);
+  const res = await PinataApi.pinBody(poll);
   const resJson = await res.json();
   if (res.status !== 201) throw new Error(resJson.error);
   const ipfsHash = resJson.ipfsHash;
@@ -99,7 +84,7 @@ async function doCreatePoll(): Promise<string> {
     publishVotes: poll.options.publishVotes,
   };
 
-  let proposalId : string;
+  let proposalId: string;
 
   const gv = (await gaslessVoting).value;
   const ugv = (await unwrappedGaslessVoting).value;
@@ -112,6 +97,7 @@ async function doCreatePoll(): Promise<string> {
 
   const createProposalTx = await dao.value.createProposal(proposalParams);
   console.log('doCreatePoll: creating proposal tx', createProposalTx.hash);
+
   const receipt = await createProposalTx.wait();
   if (receipt.status !== 1) {
     throw new Error('createProposal tx receipt reported failure.');
@@ -120,14 +106,26 @@ async function doCreatePoll(): Promise<string> {
 
   console.log('doCreatePoll: Proposal ID', proposalId);
 
-  let isActive = false;
-  while (!isActive) {
-    console.log('doCreatePoll: checking if ballot has been created on Sapphire', proposalId);
-    isActive = await uwdao.value.callStatic.ballotIsActive(proposalId!);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  return proposalId!.replace('0x', '');
+  return retry<ReturnType<typeof dao.value.ballotIsActive>>(
+    uwdao.value.callStatic.ballotIsActive(proposalId),
+    (isActive) => {
+      if (!isActive) {
+        throw new Error('Unable to determine the status of proposal.');
+      }
+      return isActive;
+    },
+  )
+    .then(() => proposalId.replace('0x', ''))
+    .catch((err) => {
+      errors.value.push(`Failed to create poll: ${err.message ?? JSON.stringify(err)}`);
+      return '';
+    });
 }
+
+onMounted(async () => {
+  await eth.connect();
+  await eth.switchNetwork(Network.FromConfig);
+});
 </script>
 
 <template>

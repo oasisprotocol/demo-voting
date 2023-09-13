@@ -3,6 +3,7 @@ import * as sapphire from '@oasisprotocol/sapphire-paratime';
 import { BigNumber, ethers } from 'ethers';
 import { defineStore } from 'pinia';
 import { markRaw, ref, shallowRef } from 'vue';
+import { MetaMaskNotInstalledError } from '@/utils/errors';
 
 export enum Network {
   Unknown = 0,
@@ -32,16 +33,36 @@ function networkFromChainId(chainId: number | string): Network {
   return Network.Unknown;
 }
 
+const networkNameMap: Record<Network, string> = {
+  [Network.Local]: 'Local Network',
+  [Network.EmeraldTestnet]: 'Emerald Testnet',
+  [Network.EmeraldMainnet]: 'Emerald Mainnet',
+  [Network.SapphireTestnet]: 'Sapphire Testnet',
+  [Network.SapphireMainnet]: 'Sapphire Mainnet',
+  [Network.SapphireLocalnet]: 'Sapphire Localnet',
+  [Network.BscMainnet]: 'BSC',
+  [Network.BscTestnet]: 'BSC Testnet',
+};
+
 export function networkName(network?: Network): string {
-  if (network === Network.Local) return 'Local Network';
-  if (network === Network.EmeraldTestnet) return 'Emerald Testnet';
-  if (network === Network.EmeraldMainnet) return 'Emerald Mainnet';
-  if (network === Network.SapphireTestnet) return 'Sapphire Testnet';
-  if (network === Network.SapphireMainnet) return 'Sapphire Mainnet';
-  if (network === Network.SapphireLocalnet) return 'Sapphire Localnet';
-  if (network === Network.BscMainnet) return 'BSC';
-  if (network === Network.BscTestnet) return 'BSC Testnet';
+  if (network && networkNameMap[network]) {
+    return networkNameMap[network];
+  }
   return 'Unknown Network';
+}
+
+interface RequestArguments {
+  method: string;
+  params?: unknown[] | object;
+}
+
+declare global {
+  interface Window {
+    ethereum: Awaited<ReturnType<typeof detectEthereumProvider>> &
+      ethers.providers.Web3Provider & {
+        request(args: RequestArguments): Promise<unknown>;
+      };
+  }
 }
 
 export const useEthereumStore = defineStore('ethereum', () => {
@@ -57,11 +78,22 @@ export const useEthereumStore = defineStore('ethereum', () => {
   const address = ref<string | undefined>(undefined);
   const status = ref(ConnectionStatus.Unknown);
 
+  async function getEthereumProvider() {
+    const ethProvider = await detectEthereumProvider();
+
+    if (!window.ethereum || ethProvider !== window.ethereum) {
+      throw new MetaMaskNotInstalledError('MetaMask not installed!');
+    }
+
+    return ethProvider;
+  }
+
   async function connect() {
     if (signer.value) return;
-    const eth = await detectEthereumProvider();
-    if (eth === null) throw new Error('no provider detected'); // TODO: catch error
-    const s = new ethers.providers.Web3Provider(eth).getSigner();
+
+    const ethProvider = await getEthereumProvider();
+
+    const s = new ethers.providers.Web3Provider(ethProvider).getSigner();
     await s.provider.send('eth_requestAccounts', []);
 
     const setSigner = (addr: string | undefined, net: Network) => {
@@ -81,22 +113,25 @@ export const useEthereumStore = defineStore('ethereum', () => {
     ]);
     setSigner(addr, net);
 
-    if (!eth.isMetaMask) {
+    if (!ethProvider.isMetaMask) {
       status.value = ConnectionStatus.Connected;
       return;
     }
-    eth.on('accountsChanged', (accounts) => {
+    ethProvider.on('accountsChanged', (accounts) => {
       setSigner(accounts[0], network.value);
     });
-    eth.on('chainChanged', (chainId) => {
-      setSigner(address.value, networkFromChainId(chainId));
+    ethProvider.on('chainChanged', (chainId) => {
+      // setSigner(address.value, networkFromChainId(chainId));
+
+      // TODO: Dirty fix, reload the app to ensure the state resets after chain switch
+      window.location.reload();
     });
-    eth.on('connect', () => (status.value = ConnectionStatus.Connected));
-    eth.on('disconnect', () => (status.value = ConnectionStatus.Disconnected));
+    ethProvider.on('connect', () => (status.value = ConnectionStatus.Connected));
+    ethProvider.on('disconnect', () => (status.value = ConnectionStatus.Disconnected));
   }
 
   async function switchNetwork(network: Network) {
-    const eth = (window as any).ethereum;
+    const eth = window.ethereum;
     if (!eth || !provider.value) return;
     const { chainId: currentNetwork } = await provider.value.getNetwork();
     if (network == currentNetwork) return;
@@ -116,7 +151,12 @@ export const useEthereumStore = defineStore('ethereum', () => {
               {
                 chainId: '0x5aff',
                 chainName: 'Sapphire Testnet',
-                rpcUrls: ['https://testnet.sapphire.oasis.dev'],
+                nativeCurrency: { name: 'TEST', symbol: 'TEST', decimals: 18 },
+                rpcUrls: [
+                  'https://testnet.sapphire.oasis.dev/',
+                  'wss://testnet.sapphire.oasis.dev/ws',
+                ],
+                blockExplorerUrls: ['https://explorer.stg.oasis.io/testnet/sapphire'],
               },
             ],
           });
@@ -131,7 +171,13 @@ export const useEthereumStore = defineStore('ethereum', () => {
               {
                 chainId: '0x5afe',
                 chainName: 'Sapphire Mainnet',
-                rpcUrls: ['https://sapphire.oasis.io'],
+                nativeCurrency: {
+                  name: 'ROSE',
+                  symbol: 'ROSE',
+                  decimals: 18,
+                },
+                rpcUrls: ['https://sapphire.oasis.io/', 'wss://sapphire.oasis.io/ws'],
+                blockExplorerUrls: ['https://explorer.stg.oasis.io/mainnet/sapphire'],
               },
             ],
           });
@@ -158,5 +204,15 @@ export const useEthereumStore = defineStore('ethereum', () => {
     }
   }
 
-  return { unwrappedSigner, signer, unwrappedProvider, provider, address, network, connect, switchNetwork };
+  return {
+    unwrappedSigner,
+    signer,
+    unwrappedProvider,
+    provider,
+    address,
+    network,
+    getEthereumProvider,
+    connect,
+    switchNetwork,
+  };
 });

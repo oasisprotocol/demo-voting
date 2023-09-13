@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Network, networkName, useEthereumStore } from '../stores/ethereum';
 import JazzIcon from './JazzIcon.vue';
 import { abbrAddr } from '@/utils/utils';
 import { useMedia } from '@/utils/useMediaQuery';
+import { MetaMaskNotInstalledError } from '@/utils/errors';
 
 const eth = useEthereumStore();
 
@@ -12,26 +13,52 @@ const netName = computed(() => networkName(eth.network));
 const unkNet = computed(() => eth.network === Network.Unknown);
 
 const connecting = ref(false);
-const showingConnecting = ref(false);
+const isMetaMaskInstalled = ref(false);
 
 async function connectWallet() {
+  if (!isMetaMaskInstalled.value) {
+    window.open('https://metamask.io/download/');
+    return;
+  }
+
   if (connecting.value) return;
   connecting.value = true;
   try {
-    setTimeout(() => {
-      showingConnecting.value = connecting.value;
-    }, 300);
     await eth.connect();
+  } catch (err) {
+    if (!(err instanceof MetaMaskNotInstalledError)) {
+      throw err;
+    } else {
+      isMetaMaskInstalled.value = false;
+    }
   } finally {
     connecting.value = false;
   }
 }
 
 const isXlScreen = useMedia('(min-width: 1280px)');
+
+onMounted(async () => {
+  try {
+    await eth.getEthereumProvider();
+  } catch (err) {
+    if (!(err instanceof MetaMaskNotInstalledError)) {
+      throw err;
+    } else {
+      isMetaMaskInstalled.value = false;
+    }
+  } finally {
+    isMetaMaskInstalled.value = true;
+  }
+});
 </script>
 
 <template>
-  <div :class="{ 'cursor-default': !!eth.address }" class="account-picker" @click="connectWallet">
+  <button
+    :class="{ 'cursor-default': !!eth.address, 'cursor-pointer': !eth.address || !isMetaMaskInstalled }"
+    class="account-picker"
+    @click="connectWallet"
+  >
     <span class="account-picker-content" v-if="!connecting && eth.address">
       <JazzIcon :size="isXlScreen ? 60 : 30" :address="eth.address" />
       <span class="font-mono font-bold">
@@ -41,13 +68,18 @@ const isXlScreen = useMedia('(min-width: 1280px)');
         }}</span>
       </span>
     </span>
+    <span class="account-picker-content" v-else-if="!isMetaMaskInstalled">
+      <span>
+        <span>Install MetaMask</span>
+      </span>
+    </span>
     <span class="account-picker-content" v-else>
       <span>
-        <span v-if="showingConnecting">Connecting…</span>
+        <span v-if="connecting">Connecting…</span>
         <span v-else>Connect Wallet</span>
       </span>
     </span>
-  </div>
+  </button>
 </template>
 
 <style lang="postcss" scoped>

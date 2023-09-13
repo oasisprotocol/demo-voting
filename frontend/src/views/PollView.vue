@@ -4,7 +4,14 @@ import { computed, onMounted, ref } from 'vue';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import { staticDAOv1, useUnwrappedPollACLv1, useUnwrappedDAOv1, useDAOv1, useGaslessVoting, useUnwrappedGaslessVoting } from '../contracts';
+import {
+  staticDAOv1,
+  useUnwrappedPollACLv1,
+  useUnwrappedDAOv1,
+  useDAOv1,
+  useGaslessVoting,
+  useUnwrappedGaslessVoting,
+} from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppBadge from '@/components/AppBadge.vue';
@@ -13,6 +20,7 @@ import UncheckedIcon from '@/components/UncheckedIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
+import { retry } from '@/utils/promise';
 
 const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
@@ -36,35 +44,6 @@ const votes = ref<[string[], number[]]>([[], []]);
 let canClosePoll = ref<Boolean>(false);
 let canAclVote = ref<Boolean>(false);
 
-(async () => {
-  const [active, params, topChoice] = await uwdao.value.callStatic.proposals(proposalId);
-  const proposal = { id: proposalId, active, topChoice, params };
-  const ipfsParamsRes = await fetch(`https://w3s.link/ipfs/${params.ipfsHash}`);
-  const ipfsParams = await ipfsParamsRes.json();
-  // TODO: redirect to 404
-  poll.value = { proposal, ipfsParams } as any;
-  if (!proposal.active) {
-    voteCounts.value = await uwdao.value.callStatic.getVoteCounts(proposalId);
-    selectedChoice.value = winningChoice.value = proposal.topChoice;
-    if (proposal.params.publishVotes) {
-      votes.value = await uwdao.value.callStatic.getVotes(proposalId);
-    }
-  }
-
-  const acl = await useUnwrappedPollACLv1();
-  const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
-  canClosePoll.value = await acl.value.callStatic.canManagePoll(
-    dao.value.address,
-    proposalId,
-    userAddress,
-  );
-  canAclVote.value = await acl.value.callStatic.canVoteOnPoll(
-    dao.value.address,
-    proposalId,
-    userAddress,
-  );
-})();
-
 const canVote = computed(() => {
   if (!eth.address) return false;
   if (winningChoice.value !== undefined) return false;
@@ -80,8 +59,6 @@ const canSelect = computed(() => {
 });
 
 async function closeBallot(): Promise<void> {
-  await eth.connect();
-  await eth.switchNetwork(Network.FromConfig);
   const tx = await dao.value.closeProposal(proposalId);
   const receipt = await tx.wait();
 
@@ -106,8 +83,6 @@ async function vote(e: Event): Promise<void> {
 }
 
 async function doVote(): Promise<void> {
-  await eth.connect();
-
   if (selectedChoice.value === undefined) throw new Error('no choice selected');
 
   const choice = selectedChoice.value;
@@ -115,32 +90,36 @@ async function doVote(): Promise<void> {
   const gv = (await gaslessVoting).value;
   const ugv = (await unwrappedGaslessVoting).value;
 
-  if( gv && ugv ) {
+  if (gv && ugv) {
     console.log('doVote: using gasless voting');
 
-    if( ! eth.signer ) {
+    if (!eth.signer) {
       throw new Error('No signer!');
     }
 
     const request = {
-        voter: await gv.signer.getAddress(),
-        proposalId: proposalId,
-        choiceId: choice
+      voter: await gv.signer.getAddress(),
+      proposalId: proposalId,
+      choiceId: choice,
     };
 
     // Sign voting request
-    const signature = await eth.signer._signTypedData({
-      name: "DAOv1.GaslessVoting",
-      version: "1",
-      chainId: import.meta.env.VITE_NETWORK,
-      verifyingContract: gv.address
-    }, {
-      VotingRequest: [
-        { name: 'voter', type: "address" },
-        { name: 'proposalId', type: 'bytes32' },
-        { name: 'choiceId', type: 'uint256' }
-      ]
-    }, request);
+    const signature = await eth.signer._signTypedData(
+      {
+        name: 'DAOv1.GaslessVoting',
+        version: '1',
+        chainId: import.meta.env.VITE_NETWORK,
+        verifyingContract: gv.address,
+      },
+      {
+        VotingRequest: [
+          { name: 'voter', type: 'address' },
+          { name: 'proposalId', type: 'bytes32' },
+          { name: 'choiceId', type: 'uint256' },
+        ],
+      },
+      request,
+    );
     const rsv = ethers.utils.splitSignature(signature);
 
     // Submit voting request to get signed transaction
@@ -151,13 +130,12 @@ async function doVote(): Promise<void> {
     // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
     let plain_resp = await eth.unwrappedProvider.sendTransaction(tx);
     console.log('doVote.gasless: waiting for tx', plain_resp.hash);
-    const receipt = await ugv.provider.waitForTransaction(plain_resp.hash)
+    const receipt = await ugv.provider.waitForTransaction(plain_resp.hash);
 
     if (receipt.status != 1) throw new Error('cast vote tx failed');
 
     console.log('doVote.gasless: success');
-  }
-  else {
+  } else {
     console.log('doVote: casting vote using normal tx');
     await eth.switchNetwork(Network.FromConfig);
     const tx = await dao.value.castVote(proposalId, choice);
@@ -169,8 +147,41 @@ async function doVote(): Promise<void> {
   existingVote.value = choice;
 }
 
-onMounted(() => {
-  eth.connect();
+onMounted(async () => {
+  await eth.connect();
+  await eth.switchNetwork(Network.FromConfig);
+
+  const [active, params, topChoice] = await uwdao.value.callStatic.proposals(proposalId);
+  const proposal = { id: proposalId, active, topChoice, params };
+  const ipfsParamsRes = await fetch(`https://w3s.link/ipfs/${params.ipfsHash}`);
+  const ipfsParams: Poll = await ipfsParamsRes.json();
+
+  poll.value = { proposal, ipfsParams } as unknown as DAOv1.ProposalWithIdStructOutput & {
+    ipfsParams: Poll;
+  };
+  if (!proposal.active) {
+    voteCounts.value = await uwdao.value.callStatic.getVoteCounts(proposalId);
+    selectedChoice.value = winningChoice.value = proposal.topChoice;
+    if (proposal.params.publishVotes) {
+      votes.value = await uwdao.value.callStatic.getVotes(proposalId);
+    }
+  }
+
+  const acl = await useUnwrappedPollACLv1();
+  const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
+
+  await Promise.all([
+    acl.value.callStatic
+      .canManagePoll(dao.value.address, proposalId, userAddress)
+      .then((status) => {
+        canClosePoll.value = status;
+      }),
+    acl.value.callStatic
+      .canVoteOnPoll(dao.value.address, proposalId, userAddress)
+      .then((status) => {
+        canAclVote.value = status;
+      }),
+  ]);
 });
 </script>
 
@@ -188,7 +199,7 @@ onMounted(() => {
         <AppButton variant="secondary" @click="closeBallot">Close poll</AppButton>
       </div>
       <p v-if="poll.proposal.active" class="text-white text-base mb-10">
-        Please choose your anwer below:
+        Please choose your answer below:
       </p>
       <form @submit="vote">
         <div v-if="poll?.ipfsParams.choices">
@@ -208,21 +219,24 @@ onMounted(() => {
               <CheckedIcon v-if="selectedChoice === choiceId || choiceId === winningChoice" />
               <UncheckedIcon v-else />
               <span class="leading-6">{{ choice }}</span>
-              <span class="leading-6" v-if="!poll.proposal.active">({{ voteCounts[choiceId] }})</span>
+              <span class="leading-6" v-if="!poll.proposal.active"
+                >({{ voteCounts[choiceId] }})</span
+              >
             </span>
           </AppButton>
         </div>
-        <p v-if="poll?.ipfsParams.options.publishVotes && poll.proposal.active" class="text-white text-base mt-10">
+        <p
+          v-if="poll?.ipfsParams.options.publishVotes && poll.proposal.active"
+          class="text-white text-base mt-10"
+        >
           Votes will be made public after voting has ended.
         </p>
-        <div v-if="poll?.ipfsParams.options.publishVotes && !poll.proposal.active" class="capitalize text-white text-2xl font-bold mt-10">
+        <div
+          v-if="poll?.ipfsParams.options.publishVotes && !poll.proposal.active"
+          class="capitalize text-white text-2xl font-bold mt-10"
+        >
           <label class="inline-block mb-5">Individual votes</label>
-          <p
-              v-for="(addr, i) in votes[0]"
-              :key="i"
-              class="text-white text-base"
-              variant="addr"
-          >
+          <p v-for="(addr, i) in votes[0]" :key="i" class="text-white text-base" variant="addr">
             {{ addr }}: {{ poll.ipfsParams.choices[votes[1][i]] }}
           </p>
         </div>
@@ -261,7 +275,10 @@ onMounted(() => {
         </span>
       </AppButton>
 
-      <p v-if="poll?.ipfsParams.options.publishVotes" class="text-white text-center text-base mb-24">
+      <p
+        v-if="poll?.ipfsParams.options.publishVotes"
+        class="text-white text-center text-base mb-24"
+      >
         Your vote will be published after voting has ended.
       </p>
 
@@ -272,7 +289,7 @@ onMounted(() => {
   </section>
   <section v-else-if="isClosed">
     <SuccessInfo>
-      <p class="text-white text-base mb-4">Your poll has been closed.</p>
+      <p class="text-white text-base mb-4">The poll has been closed.</p>
 
       <RouterLink to="/">
         <AppButton variant="secondary">Go to overview</AppButton>
