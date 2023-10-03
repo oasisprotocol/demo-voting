@@ -20,6 +20,7 @@ const pastPolls = shallowRef<Record<string, FullProposal>>({});
 const canCreatePoll = ref<Boolean>(false);
 const isLoadingActive = ref<Boolean>(true);
 const isLoadingPast = ref<Boolean>(true);
+const isCorrectNetworkSelected = ref<Boolean>(true);
 
 async function fetchProposals(
   fetcher: (offset: number, batchSize: number) => Promise<DAOv1.ProposalWithIdStructOutput[]>,
@@ -55,9 +56,16 @@ async function fetchProposals(
   return proposalsMap;
 }
 
+async function switchNetwork() {
+  await eth.switchNetwork(Network.FromConfig);
+}
+
 onMounted(async () => {
   await eth.connect();
+  isCorrectNetworkSelected.value = eth.checkIsCorrectNetwork();
   await eth.switchNetwork(Network.FromConfig);
+  // Check again if the right network has been selected
+  isCorrectNetworkSelected.value = eth.checkIsCorrectNetwork();
 
   const acl = await useUnwrappedPollACLv1();
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
@@ -87,7 +95,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="pt-5">
+  <section class="pt-5" v-if="isCorrectNetworkSelected">
     <h2 class="capitalize text-white text-2xl font-bold mb-4">Poll overview</h2>
     <p class="text-white text-base mb-20">Bellow is your overview of your active and past polls</p>
 
@@ -149,6 +157,17 @@ onMounted(async () => {
     >
       You currently have no past polls
     </p>
+  </section>
+  <section class="pt-5" v-else>
+    <h2 class="capitalize text-white text-2xl font-bold mb-4">Invalid network detected</h2>
+    <p class="text-white text-base mb-20">
+      In order to continue to use the app, please switch to the correct chain, by clicking on the
+      bellow "Switch network" button
+    </p>
+
+    <div class="flex justify-center">
+      <AppButton variant="secondary" @click="switchNetwork">Switch network</AppButton>
+    </div>
   </section>
 </template>
 
