@@ -125,7 +125,7 @@ async function doVote(): Promise<void> {
     // Submit voting request to get signed transaction
     const gasPrice = await uwdao.value.provider.getGasPrice();
     console.log('doVote.gasless: constructing tx', 'gasPrice', gasPrice);
-    const tx = await gv.makeVoteTransaction(gasPrice, request, rsv);
+    const tx = await ugv.makeVoteTransaction(gasPrice, request, rsv);
 
     // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
     let plain_resp = await eth.unwrappedProvider.sendTransaction(tx);
@@ -172,12 +172,12 @@ onMounted(async () => {
 
   await Promise.all([
     acl.value.callStatic
-      .canManagePoll(dao.value.address, proposalId, userAddress)
+      .canManagePoll(uwdao.value.address, proposalId, userAddress)
       .then((status) => {
         canClosePoll.value = status;
       }),
     acl.value.callStatic
-      .canVoteOnPoll(dao.value.address, proposalId, userAddress)
+      .canVoteOnPoll(uwdao.value.address, proposalId, userAddress)
       .then((status) => {
         canAclVote.value = status;
       }),
