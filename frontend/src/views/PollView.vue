@@ -190,7 +190,7 @@ onMounted(async () => {
           {{ poll.proposal.active ? 'Active' : 'Closed' }}
         </AppBadge>
       </div>
-      <p class="text-white text-base mb-20">{{ poll.ipfsParams.description }}</p>
+      <p class="text-white text-base mb-10">{{ poll.ipfsParams.description }}</p>
       <form @submit="vote">
         <div v-if="poll?.ipfsParams.choices">
           <AppButton

@@ -99,7 +99,6 @@ export const useEthereumStore = defineStore('ethereum', () => {
     await getSigner();
 
     ethProvider.on('accountsChanged', async (accounts) => {
-      await getSigner();
       await _changeAccounts(accounts);
     });
     ethProvider.on('chainChanged', async (chainId) => {
@@ -128,7 +127,6 @@ export const useEthereumStore = defineStore('ethereum', () => {
       if( ! ethProvider ) {
         throw new Error("Can't connect! No window.ethereum!");
       }
-      console.log('getSigner assign new l_signer');
       l_signer = new ethers.providers.Web3Provider(ethProvider).getSigner(in_account);
     }
     else {
@@ -139,13 +137,10 @@ export const useEthereumStore = defineStore('ethereum', () => {
 
     // Check if we are already connecting before requesting accounts again
     if( in_doConnect ) {
-      console.log('getSigner doConnect');
       if( ! l_accounts.length ) {
-        console.log('getSigner request accounts');
         l_accounts = await l_signer.provider.send('eth_requestAccounts', []);
         await _changeAccounts(l_accounts);
       }
-      console.log('getSigner, already have accounts', l_accounts)
     }
 
     // Check if we're requested to switch networks
