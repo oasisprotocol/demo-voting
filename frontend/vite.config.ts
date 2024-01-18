@@ -8,6 +8,14 @@ import { visualizer } from 'rollup-plugin-visualizer';
 export default defineConfig({
   build: {
     sourcemap: true,
+    cssCodeSplit: false,
+    chunkSizeWarningLimit: 2**20,
+    rollupOptions: {
+      output: {
+        // Watch the output of `pnpm build`, make it fit in single 1mb chunk
+        manualChunks: () => 'app'
+      },
+    },
   },
   // define: {
   //   __VUE_OPTIONS_API__: false

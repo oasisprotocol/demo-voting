@@ -48,9 +48,6 @@ task('deploy')
   .setAction(async (args, hre) => {
     await hre.run('compile');
 
-    let gv : GaslessVoting | undefined;
-    let gv_address : string | undefined;
-
     let acl: EthereumUtils | undefined;
     if (args.acl) {
       console.log('Deploying ACL')
@@ -60,36 +57,31 @@ task('deploy')
       console.log(`Deployed ACL to ${acl.address}`);
     }
 
-    if( args.gasless ) {
-      console.log('Deploying GaslessVoting');
-      const GaslessVoting_factory = await hre.ethers.getContractFactory('GaslessVoting');
-      const funds = hre.ethers.utils.parseEther(args.gaslessFunds);
-
-      gv = await GaslessVoting_factory.deploy(hre.ethers.constants.AddressZero, {value: funds});
-      await gv.deployed();
-      gv_address = gv.address;
-      console.log(`Deployed GaslessVoting proxy to ${gv_address}`);
-    }
+    console.log('Deploying GaslessVoting');
+    const gaslessFunds = hre.ethers.utils.parseEther(args.gaslessFunds);
+    const GaslessVoting_factory = await hre.ethers.getContractFactory('GaslessVoting');
+    const gv = await GaslessVoting_factory.deploy(hre.ethers.constants.AddressZero, {value: gaslessFunds});
+    console.log('Deploy transaction:', gv.deployTransaction.hash);
+    await gv.deployed();
+    console.log(`Deployed GaslessVoting proxy to ${gv.address}`);
 
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy(acl ? acl.address : hre.ethers.constants.AddressZero, gv_address ?? hre.ethers.constants.AddressZero);
+    const dao = await DAOv1.deploy(acl ? acl.address : hre.ethers.constants.AddressZero, gv.address);
     await dao.deployed();
 
-    if( gv ) {
-      await gv.setDAO(dao.address);
+    await gv.setDAO(dao.address);
 
-      let n = Number(args.gaslessAccounts);
-      if( n > 1 ) {
-        console.log(`Adding ${n-1} accounts`);
-        for( let i = 0; i < n; i++ ) {
-          await gv.addKeypair();
-        }
+    let n = Number(args.gaslessAccounts);
+    if( n > 1 ) {
+      console.log(`Adding ${n-1} accounts`);
+      for( let i = 0; i < n; i++ ) {
+        await gv.addKeypair();
       }
+    }
 
-      const accounts = await gv.listAddresses();
-      for( const a of accounts ) {
-        console.log(' -', a);
-      }
+    const accounts = await gv.listAddresses();
+    for( const a of accounts ) {
+      console.log(' -', a);
     }
 
     console.log(`VITE_DAO_V1_ADDR=${dao.address}`);

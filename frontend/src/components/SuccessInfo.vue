@@ -12,6 +12,6 @@ import SuccessIcon from '@/components/SuccessIcon.vue';
 <style scoped lang="postcss">
 .success-info {
   @apply flex flex-col items-center;
-  margin-top: 20vw;
+  margin-top: 5vw;
 }
 </style>
