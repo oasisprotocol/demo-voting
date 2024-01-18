@@ -96,12 +96,10 @@ export const useEthereumStore = defineStore('ethereum', () => {
       return;
     }
 
-    console.log('detchEthereumProvider');
     await getSigner();
 
     ethProvider.on('accountsChanged', async (accounts) => {
-      //await getSigner();
-      console.log('accountsChanged')
+      await getSigner();
       await _changeAccounts(accounts);
     });
     ethProvider.on('chainChanged', async (chainId) => {
@@ -124,7 +122,7 @@ export const useEthereumStore = defineStore('ethereum', () => {
 
   async function getSigner (in_doConnect?:boolean, in_doSwitch?:boolean, in_account?:string) {
     let l_signer;
-    console.log('getSigner Start!');
+
     if( ! signer.value || (in_account && await signer.value.getAddress() != in_account) ) {
       const ethProvider = await detectEthereumProvider<EIP1193Provider>();
       if( ! ethProvider ) {
@@ -152,9 +150,7 @@ export const useEthereumStore = defineStore('ethereum', () => {
 
     // Check if we're requested to switch networks
     let l_network = networkFromChainId(await l_signer.provider.send('eth_chainId', []));
-    console.log('getSigner, network is', l_network, network.value, in_doSwitch);
     if( in_doSwitch && (l_network != network.value || l_network != Network.FromConfig) ) {
-      console.log('Need to switch');
       try {
         await l_signer.provider.send('wallet_switchEthereumChain', [{ chainId: ethers.utils.hexlify(Network.FromConfig).replace('0x0', '0x') }]);
         l_network = Network.FromConfig;
@@ -195,8 +191,7 @@ export const useEthereumStore = defineStore('ethereum', () => {
   async function addNetwork(network: Network = Network.FromConfig) {
     const eth = await detectEthereumProvider<EIP1193Provider>();;
     if( ! eth ) {
-      console.log('addNetwork detectEthereumProvider = null');
-      return;
+      throw new Error('addNetwork detectEthereumProvider = null');
     }
 
     if (network == Network.SapphireTestnet) {

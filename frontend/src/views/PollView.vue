@@ -231,9 +231,8 @@ onMounted(async () => {
           </p>
         </div>
 
-        <div v-if="eth.signer" class="flex justify-between mt-6">
+        <div v-if="poll?.proposal?.active && eth.isSapphire" class="flex justify-between items-start mt-6">
           <AppButton
-            v-if="poll?.proposal?.active"
             type="submit"
             variant="primary"
             :disabled="!canVote || isLoading"
@@ -243,7 +242,7 @@ onMounted(async () => {
             <span v-else-if="!isLoading">Submit vote</span>
           </AppButton>
 
-          <div v-if="poll.proposal.active && eth.signer && canClosePoll">
+          <div v-if="canClosePoll">
             <AppButton variant="secondary" @click="closeBallot">
               <span v-if="isClosing">Closing...</span>
               <span v-else>Close poll</span>
@@ -252,7 +251,7 @@ onMounted(async () => {
         </div>
         <div v-else-if="poll?.proposal?.active">
           <br /><br />
-          <section class="pt-5">
+          <section class="pt-5" v-if="!eth.signer">
             <h2 class="capitalize text-white text-2xl font-bold mb-4">Web3 Wallet Required to Vote</h2>
             <p class="text-white text-base mb-10">
               In order to continue to use the app and vote on a poll, please connect your Web3 wallet by clicking on the
@@ -263,6 +262,17 @@ onMounted(async () => {
               <AppButton variant="secondary" @click="eth.connect">Connect</AppButton>
             </div>
           </section>
+          <section class="pt-5" v-else-if="!eth.isSapphire">
+            <h2 class="capitalize text-white text-2xl font-bold mb-4">Please Connect to Sapphire</h2>
+            <p class="text-white text-base mb-10">
+              In order to continue to use the app and vote on a poll, please switch your Web3 wallet to Oasis Sapphire by clicking on the "Switch" button below.
+            </p>
+
+            <div class="flex justify-center">
+              <AppButton variant="secondary" @click="eth.connect">Switch</AppButton>
+            </div>
+          </section>
+
         </div>
 
         <p v-if="error" class="error mt-2 text-center">

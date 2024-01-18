@@ -41,7 +41,7 @@ defineProps<{
 }
 
 .btn-secondary {
-  @apply bg-primary text-white rounded-full border-white mt-5;
+  @apply bg-primary text-white rounded-full border-white;
   border-width: 1px;
 }
 
