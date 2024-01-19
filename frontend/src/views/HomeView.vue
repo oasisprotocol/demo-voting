@@ -4,7 +4,7 @@ import { onMounted, ref, shallowRef } from 'vue';
 
 import type { Poll } from '../../../functions/api/types';
 import type { DAOv1 } from '../contracts';
-import { useDAOv1, useUnwrappedPollACLv1, useUnwrappedDAOv1 } from '../contracts';
+import { useDAOv1, usePollACLv1 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppPoll from '@/components/AppPoll.vue';
@@ -12,7 +12,6 @@ import PollLoader from '@/components/PollLoader.vue';
 
 const eth = useEthereumStore();
 const dao = useDAOv1();
-const uwdao = useUnwrappedDAOv1();
 
 type FullProposal = DAOv1.ProposalWithIdStructOutput & { params: Poll };
 const activePolls = shallowRef<Record<string, FullProposal>>({});
@@ -20,7 +19,6 @@ const pastPolls = shallowRef<Record<string, FullProposal>>({});
 const canCreatePoll = ref<Boolean>(false);
 const isLoadingActive = ref<Boolean>(true);
 const isLoadingPast = ref<Boolean>(true);
-const isCorrectNetworkSelected = ref<Boolean>(true);
 
 async function fetchProposals(
   fetcher: (offset: number, batchSize: number) => Promise<DAOv1.ProposalWithIdStructOutput[]>,
@@ -61,13 +59,13 @@ async function switchNetwork() {
 }
 
 onMounted(async () => {
-  await eth.connect();
-  isCorrectNetworkSelected.value = eth.checkIsCorrectNetwork();
-  await eth.switchNetwork(Network.FromConfig);
+  //await eth.connect();
+  //isCorrectNetworkSelected.value = eth.isSapphire.valueOf();
+  //await eth.switchNetwork(Network.FromConfig);
   // Check again if the right network has been selected
-  isCorrectNetworkSelected.value = eth.checkIsCorrectNetwork();
+  //isCorrectNetworkSelected.value = eth.isSapphire.valueOf();
 
-  const acl = await useUnwrappedPollACLv1();
+  const acl = await usePollACLv1();
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
   canCreatePoll.value = await acl.value.callStatic.canCreatePoll(dao.value.address, userAddress);
 
@@ -75,7 +73,7 @@ onMounted(async () => {
 
   await Promise.all([
     fetchProposals((offset, batchSize) =>
-      uwdao.value.callStatic.getActiveProposals(offset, batchSize, {
+      dao.value.callStatic.getActiveProposals(offset, batchSize, {
         blockTag,
       }),
     ).then((proposalsMap) => {
@@ -83,7 +81,7 @@ onMounted(async () => {
       isLoadingActive.value = false;
     }),
     fetchProposals((offset, batchSize) => {
-      return uwdao.value.callStatic.getPastProposals(offset, batchSize, {
+      return dao.value.callStatic.getPastProposals(offset, batchSize, {
         blockTag,
       });
     }).then((proposalsMap) => {
@@ -95,11 +93,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="pt-5" v-if="isCorrectNetworkSelected">
+  <section class="pt-5">
+    <!--
     <h2 class="capitalize text-white text-2xl font-bold mb-4">Poll overview</h2>
     <p class="text-white text-base mb-20">Bellow is your overview of your active and past polls</p>
+    -->
 
-    <div v-if="canCreatePoll" class="flex justify-end mb-6">
+    <div v-if="eth.signer && canCreatePoll" class="flex justify-center mb-6">
       <RouterLink to="polls">
         <AppButton variant="secondary">&plus;&nbsp;&nbsp;Create a new poll</AppButton>
       </RouterLink>
@@ -157,17 +157,6 @@ onMounted(async () => {
     >
       You currently have no past polls
     </p>
-  </section>
-  <section class="pt-5" v-else>
-    <h2 class="capitalize text-white text-2xl font-bold mb-4">Invalid network detected</h2>
-    <p class="text-white text-base mb-20">
-      In order to continue to use the app, please switch to the correct chain, by clicking on the
-      bellow "Switch network" button
-    </p>
-
-    <div class="flex justify-center">
-      <AppButton variant="secondary" @click="switchNetwork">Switch network</AppButton>
-    </div>
   </section>
 </template>
 

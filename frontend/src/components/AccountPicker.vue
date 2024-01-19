@@ -6,6 +6,8 @@ import JazzIcon from './JazzIcon.vue';
 import { abbrAddr } from '@/utils/utils';
 import { useMedia } from '@/utils/useMediaQuery';
 import { MetaMaskNotInstalledError } from '@/utils/errors';
+import detectEthereumProvider from '@metamask/detect-provider';
+import type { EIP1193Provider } from '@/stores/eip1193';
 
 const eth = useEthereumStore();
 
@@ -26,11 +28,8 @@ async function connectWallet() {
   try {
     await eth.connect();
   } catch (err) {
-    if (!(err instanceof MetaMaskNotInstalledError)) {
-      throw err;
-    } else {
-      isMetaMaskInstalled.value = false;
-    }
+    console.error(err);
+    isMetaMaskInstalled.value = false;
   } finally {
     connecting.value = false;
   }
@@ -40,14 +39,13 @@ const isXlScreen = useMedia('(min-width: 1280px)');
 
 onMounted(async () => {
   try {
-    await eth.getEthereumProvider();
-  } catch (err) {
-    if (!(err instanceof MetaMaskNotInstalledError)) {
-      throw err;
-    } else {
-      isMetaMaskInstalled.value = false;
-    }
-  } finally {
+    await detectEthereumProvider<EIP1193Provider>();
+  }
+  catch (err) {
+    console.error(err)
+    isMetaMaskInstalled.value = false;
+  }
+  finally {
     isMetaMaskInstalled.value = true;
   }
 });
