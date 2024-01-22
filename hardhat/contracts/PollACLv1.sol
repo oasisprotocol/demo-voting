@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-type ProposalId is bytes32;
-
-struct ProposalParams {
-    string ipfsHash;
-    uint16 numChoices;
-    bool publishVotes;
-}
+import { ProposalId, ProposalParams } from "./Types.sol";
 
 /**
  * @title Generic ACL interface for DAO polls.
@@ -35,8 +29,3 @@ interface PollACLv1 {
     function canVoteOnPoll(address dao, ProposalId proposalId, address user) external view returns(bool);
 }
 
-interface AcceptsProxyVotes {
-    function createProposal(ProposalParams calldata _params) external returns (ProposalId);
-    function proxyVote(address voter, ProposalId proposalId, uint256 choiceIdBig) external;
-    function getACL() external view returns (PollACLv1);
-}

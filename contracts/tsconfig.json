@@ -1,0 +1,17 @@
+{
+  "include": [
+    "./src/index.ts",
+    "./src/contracts/contracts",
+    "./src/contracts/factories",
+  ],
+  "compilerOptions": {
+    "declaration": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "sourceMap": true,
+    "strict": true,
+    "target": "es2020",
+    "module": "es2020",
+    "outDir": "./lib/esm"
+  }
+}

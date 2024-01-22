@@ -6,7 +6,9 @@ import {EIP155Signer} from '@oasisprotocol/sapphire-contracts/contracts/EIP155Si
 import {SignatureRSV,EthereumUtils} from '@oasisprotocol/sapphire-contracts/contracts/EthereumUtils.sol';
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
-import {PollACLv1, ProposalId, AcceptsProxyVotes, ProposalParams} from "./Types.sol";
+import {ProposalId, ProposalParams} from "./Types.sol";
+import { PollACLv1 } from "./PollACLv1.sol";
+import { AcceptsProxyVotes } from "./AcceptsProxyVotes.sol";
 
 struct VotingRequest {
     address voter;

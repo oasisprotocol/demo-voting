@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {PollACLv1, ProposalId} from "./Types.sol"; // solhint-disable-line no-global-import
+import {ProposalId} from "./Types.sol"; // solhint-disable-line no-global-import
+import {PollACLv1} from "./PollACLv1.sol";
 
 // ACL rules:
 // - anyone can create a poll
 // - poll creator becomes poll manager
 // - different poll managers can be set by the ACL owner
-// - anyone can vote on any ballot
-contract AllowVotersACLv1 is PollACLv1 {
+// - only whitelisted voters can vote on particular ballot
+contract WhitelistVotersACLv1 is PollACLv1 {
     // Stores (dao, ProposalID, poll manager address) triplet.
     mapping (bytes32 => mapping(address => bool)) pollManagers;
     // Stores (dao, ProposalID) => list of poll managers in form of a list for
@@ -54,11 +55,28 @@ contract AllowVotersACLv1 is PollACLv1 {
         }
     }
 
-    function canVoteOnPoll(address, ProposalId, address)
-        external pure
-        returns(bool)
+    function canVoteOnPoll(address dao, ProposalId proposalId, address user)
+        public view
+        returns(bool) {
+        return eligibleVoters[keccak256(abi.encode(dao, proposalId))][user] == true;
+    }
+
+    function listEligibleVoters(ProposalId proposalId)
+    external view
+    returns(address[] memory)
     {
-        return true;
+        return eligibleVotersList[keccak256(abi.encode(address(this), proposalId))];
+    }
+
+    function setEligibleVoters(address dao, ProposalId proposalId, address[] calldata voters)
+        external
+    {
+        if (!canManagePoll(dao, proposalId, msg.sender)) revert PollManagementNotAllowed();
+
+        mapping(address => bool) storage allowedVotersMap = eligibleVoters[keccak256(abi.encode(dao, proposalId))];
+        for (uint i=0; i<voters.length; i++) {
+            allowedVotersMap[voters[i]] = true;
+        }
     }
 
 }

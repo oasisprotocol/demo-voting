@@ -1,5 +1,5 @@
 //import '@oasisprotocol/sapphire-hardhat';
-import "@nomiclabs/hardhat-ethers"
+import "@nomicfoundation/hardhat-ethers"
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -10,7 +10,7 @@ import { HardhatUserConfig, task } from 'hardhat/config';
 import '@typechain/hardhat';
 import 'hardhat-watcher';
 import 'solidity-coverage';
-import { EthereumUtils, GaslessVoting } from './typechain-types';
+import { WhitelistVotersACLv1 } from './src/contracts';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 const TASK_EXPORT_ABIS = 'export-abis';
@@ -48,28 +48,29 @@ task('deploy')
   .setAction(async (args, hre) => {
     await hre.run('compile');
 
-    let acl: EthereumUtils | undefined;
+    let acl: WhitelistVotersACLv1 | undefined;
     if (args.acl) {
       console.log('Deploying ACL')
-      const ACLv1 = await hre.ethers.getContractFactory(args.acl);
+      const ACLv1 = await hre.ethers.getContractFactory('WhitelistVotersACLv1', args.acl);
       acl = await ACLv1.deploy();
-      await acl.deployed();
-      console.log(`Deployed ACL to ${acl.address}`);
+      await acl.waitForDeployment();
+      console.log(`Deployed ACL to ${await acl.getAddress()}`);
     }
 
     console.log('Deploying GaslessVoting');
-    const gaslessFunds = hre.ethers.utils.parseEther(args.gaslessFunds);
+    const gaslessFunds = hre.ethers.parseEther(args.gaslessFunds);
     const GaslessVoting_factory = await hre.ethers.getContractFactory('GaslessVoting');
-    const gv = await GaslessVoting_factory.deploy(hre.ethers.constants.AddressZero, {value: gaslessFunds});
-    console.log('Deploy transaction:', gv.deployTransaction.hash);
-    await gv.deployed();
-    console.log(`Deployed GaslessVoting proxy to ${gv.address}`);
+    const gv = await GaslessVoting_factory.deploy(hre.ethers.ZeroAddress, {value: gaslessFunds});
+
+    console.log('Deploy transaction:', gv.deploymentTransaction()?.hash);
+    await gv.waitForDeployment()
+    console.log(`Deployed GaslessVoting proxy to ${await gv.getAddress()}`);
 
     const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = await DAOv1.deploy(acl ? acl.address : hre.ethers.constants.AddressZero, gv.address);
-    await dao.deployed();
+    const dao = await DAOv1.deploy(acl ? (await acl.getAddress()) : hre.ethers.ZeroAddress, (await gv.getAddress()));
+    await dao.waitForDeployment();
 
-    await gv.setDAO(dao.address);
+    await gv.setDAO(await dao.getAddress());
 
     let n = Number(args.gaslessAccounts);
     if( n > 1 ) {
@@ -84,7 +85,7 @@ task('deploy')
       console.log(' -', a);
     }
 
-    console.log(`VITE_DAO_V1_ADDR=${dao.address}`);
+    console.log(`VITE_DAO_V1_ADDR=${await dao.getAddress()}`);
     return dao;
 });
 
@@ -102,32 +103,32 @@ task('gv-topup')
   .addFlag('dryrun', 'Perform a dry-run')
   .setAction(async (args, hre) => {
     const gv = await getGaslessProxy(hre, args.dao);
-    const min = hre.ethers.utils.parseEther(args.min);
+    const min = hre.ethers.parseEther(args.min);
     const dryrun = args.dryrun;
-    const mintop = hre.ethers.utils.parseEther(args.minimumTopup);
+    const mintop = hre.ethers.parseEther(args.minimumTopup);
 
     for( const addr of await gv.listAddresses() )
     {
-      const bal = await gv.provider.getBalance(addr);
-      console.log(addr, 'has', hre.ethers.utils.formatEther(bal), `ROSE (${bal} wei)`);
+      const bal = await gv.runner!.provider!.getBalance(addr);
+      console.log(addr, 'has', hre.ethers.formatEther(bal), `ROSE (${bal} wei)`);
 
-      if( bal.lt(min) )
+      if( bal < min )
       {
-        const diff = min.sub(bal);
-        if( diff.gte(mintop) )
+        const diff = min - bal;
+        if( diff >= mintop )
         {
-          console.log(' - needs', hre.ethers.utils.formatEther(diff), 'ROSE');
+          console.log(' - needs', hre.ethers.formatEther(diff), 'ROSE');
           if( ! dryrun )
           {
-            const tx = await gv.signer.sendTransaction({
+            const tx = await (await hre.ethers.getSigners())[0].sendTransaction({
               to: addr,
               data: "0x",
               value: diff
             });
             console.log(' -', tx.hash);
             tx.wait();
-            const newBal = await gv.provider.getBalance(addr);
-            console.log(' - new balance', hre.ethers.utils.formatEther(newBal), `ROSE (${newBal} wei)`);
+            const newBal = await gv.runner!.provider!.getBalance(addr);
+            console.log(' - new balance', hre.ethers.formatEther(newBal), `ROSE (${newBal} wei)`);
           }
         }
       }
@@ -144,15 +145,15 @@ task('gv-newkp', 'Add a new KeyPair to gasless voting contract')
       throw new Error(`Invalid number of accounts: ${n}`);
     }
     const gv = await getGaslessProxy(hre, args.dao);
-    const value = hre.ethers.utils.parseEther(args.amount);
+    const value = hre.ethers.parseEther(args.amount);
     console.log(`Creating ${n} keypairs, with ${args.amount} ROSE each`);
     for( let i = 0; i < n; i++ ) {
       const tx = await gv.addKeypair({value: value});
       const receipt = await tx.wait();
       const frag = gv.interface.getEvent('KeypairCreated');
-      const eventArgs = gv.interface.decodeEventLog(frag, receipt.logs[0].data);
+      const eventArgs = gv.interface.decodeEventLog(frag, receipt!.logs[0].data);
       const addr = eventArgs.addr;
-      console.log(` - ${addr}`, hre.ethers.utils.formatEther(await gv.provider.getBalance(addr)), 'ROSE');
+      console.log(` - ${addr}`, hre.ethers.formatEther(await gv.runner!.provider!.getBalance(addr)), 'ROSE');
     }
 });
 
@@ -163,21 +164,19 @@ task('whitelist-voters', 'Whitelist the poll voters for DAOs using WhitelistVote
   .setAction(async (args, hre) => {
     await hre.run('compile');
 
-    const DAOv1 = await hre.ethers.getContractFactory('DAOv1');
-    const dao = DAOv1.attach(args.dao);
+    const dao = await hre.ethers.getContractAt('DAOv1', args.dao);
     const signer = new hre.ethers.Wallet(process.env.PRIVATE_KEY!, hre.ethers.provider);
-    const ACLv1 = await hre.ethers.getContractFactory('SimpleWhitelistACLv1');
-    const acl = ACLv1.attach(await dao.getACL()).connect(signer);
+    const acl = (await hre.ethers.getContractAt('WhitelistVotersACLv1', await dao.getACL())).connect(signer);
 
     let file = await fs.readFile(args.voters_file);
     const addrRaw = file.toString().split("\n");
     let addresses: string[] = [];
     for(const i in addrRaw) {
-      if (hre.ethers.utils.isAddress(addrRaw[i])) {
+      if (hre.ethers.isAddress(addrRaw[i])) {
         addresses.push(addrRaw[i]);
       }
     }
-    await (await acl.setEligibleVoters(dao.address, (args.poll_id.startsWith("0x")?"":"0x")+args.poll_id, addresses)).wait();
+    await (await acl.setEligibleVoters(await dao.getAddress(), (args.poll_id.startsWith("0x")?"":"0x")+args.poll_id, addresses)).wait();
   });
 
 const TEST_HDWALLET = {
@@ -223,6 +222,10 @@ const config: HardhatUserConfig = {
       },
       viaIR: true,
     },
+  },
+  typechain: {
+    target: 'ethers-v6',
+    outDir: 'src/contracts'
   },
   watcher: {
     compile: {

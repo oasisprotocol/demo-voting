@@ -1,19 +1,9 @@
-import { ethers } from 'ethers';
-import type { ComputedRef } from 'vue';
-import { computed } from 'vue';
+import { computed, type ComputedRef } from 'vue';
 
-import { GaslessVoting__factory, type DAOv1, type GaslessVoting, type PollACLv1 } from '@oasisprotocol/demo-voting-backend';
-import { DAOv1__factory, PollACLv1__factory } from '@oasisprotocol/demo-voting-backend';
-
+import { DAOv1__factory, PollACLv1__factory, GaslessVoting__factory } from '@oasisprotocol/demo-voting-contracts/factories';
+import type { DAOv1, GaslessVoting, PollACLv1 } from '@oasisprotocol/demo-voting-contracts/contracts'
+export type { DAOv1 };
 import { useEthereumStore } from './stores/ethereum';
-
-export type { DAOv1, GaslessVoting } from '@oasisprotocol/demo-voting-backend';
-
-const provider = new ethers.providers.JsonRpcProvider(
-  import.meta.env.VITE_WEB3_GATEWAY,
-  'any',
-);
-
 
 export function useDAOv1(): ComputedRef<DAOv1> {
   const eth = useEthereumStore();

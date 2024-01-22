@@ -6,6 +6,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import "./Types.sol"; // solhint-disable-line no-global-import
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import "./AllowAllACLv1.sol"; // solhint-disable-line no-global-import
+import { AcceptsProxyVotes } from "./AcceptsProxyVotes.sol";
 
 contract DAOv1 is IERC165, AcceptsProxyVotes {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -192,6 +193,7 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
         }
     }
 
+    /*
     function closeProposal(ProposalId proposalId)
         external
     {
@@ -219,6 +221,44 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
         activeProposals.remove(ProposalId.unwrap(proposalId));
         pastProposals.push(proposalId);
         emit ProposalClosed(proposalId, topChoice);
+    }
+    */
+
+   function closeProposal(ProposalId proposalId)
+        external
+        returns (uint256)
+    {
+        if (!acl.canManagePoll(address(this), proposalId, msg.sender)) {
+            return 2;
+            //revert PollACLv1.PollManagementNotAllowed();
+        }
+
+        Proposal storage proposal = proposals[proposalId];
+        if (!proposal.active) {
+            return 4;
+            //revert NotActive();
+        }
+
+        Ballot storage ballot = _ballots[proposalId];
+
+        uint256 topChoice;
+        uint256 topChoiceCount;
+        for (uint8 i; i < proposal.params.numChoices; ++i)
+        {
+            uint256 choiceVoteCount = ballot.voteCounts[i] & (type(uint256).max >> 1);
+            if (choiceVoteCount > topChoiceCount)
+            {
+                topChoice = i;
+                topChoiceCount = choiceVoteCount;
+            }
+        }
+
+        proposals[proposalId].topChoice = uint8(topChoice);
+        proposals[proposalId].active = false;
+        activeProposals.remove(ProposalId.unwrap(proposalId));
+        pastProposals.push(proposalId);
+        emit ProposalClosed(proposalId, topChoice);
+        return 8;
     }
 
     function getVoteOf(ProposalId proposalId, address voter)

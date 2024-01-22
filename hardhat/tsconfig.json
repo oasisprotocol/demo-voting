@@ -1,12 +1,15 @@
 {
-  "include": ["../src"],
+  "include": ["src", "scripts", "test", "typechain-types"],
+  "files": ["hardhat.config.ts"],
   "compilerOptions": {
+    "noEmit": true,
     "declaration": true,
     "esModuleInterop": true,
     "module": "commonjs",
     "moduleResolution": "node",
     "sourceMap": true,
     "strict": true,
-    "target": "es2020"
+    "target": "es2020",
+    "outDir": "../lib/cjs"
   }
 }
