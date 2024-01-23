@@ -1,65 +1,50 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import {BigNumber, BytesLike, Contract} from "ethers";
-import { JsonRpcSigner, StaticJsonRpcProvider } from "@ethersproject/providers";
+import { BytesLike, EventLog } from "ethers";
 
-import { DAOv1, ProposalParamsStruct } from "../typechain-types/contracts/DAOv1";
+import { DAOv1, ProposalParamsStruct } from "../src/contracts/contracts/DAOv1";
 
 const TEST_PROPOSALS: ProposalParamsStruct[] = [
   {ipfsHash: "abcd123", numChoices: 3, publishVotes: true},
   {ipfsHash: "abc1234", numChoices: 3, publishVotes: true},
 ];
 
-async function signVotingRequest(signer:JsonRpcSigner, gv_address:string, request:any) {
-  const signature = await signer._signTypedData({
-    name: "DAOv1.GaslessVoting",
-    version: "1",
-    chainId: await signer.getChainId(),
-    verifyingContract: gv_address
-  }, {
-    VotingRequest: [
-      { name: 'voter', type: "address" },
-      { name: 'proposalId', type: 'bytes32' },
-      { name: 'choiceId', type: 'uint256' }
-    ]
-  }, request);
-  return ethers.utils.splitSignature(signature);
-}
-
 async function addProposal(dao:DAOv1, proposal:ProposalParamsStruct) {
-  const createProposalTx = (await dao.createProposal(proposal));
-  const createProposalRc = await createProposalTx.wait();
-  expect(createProposalRc.events).to.not.be.undefined;
-  const createEvent = createProposalRc.events!.find(event => event.event === 'ProposalCreated');
+  const tx = (await dao.createProposal(proposal));
+  const receipt = await tx.wait();
+  expect(receipt!.logs).to.not.be.undefined;
+  const createEvent = receipt!.logs.find(event => (event as EventLog).fragment.name === 'ProposalCreated') as EventLog;
   expect(createEvent).to.not.be.undefined;
   expect(createEvent!.args).to.not.be.undefined;
-  return createEvent!.args![0];
+  return createEvent!.args![0] as BytesLike;
 }
 
 async function closeProposal(dao:DAOv1, proposalId:BytesLike) {
-  const closeProposalTx = (await dao.closeProposal(proposalId));
-  const closeProposalRc = await closeProposalTx.wait();
-  expect(closeProposalRc.events).to.not.be.undefined;
-  const closeEvent = closeProposalRc.events!.find(event => event.event === 'ProposalClosed');
+  const tx = await dao.closeProposal(proposalId);
+  const receipt = await tx.wait();
+  expect(receipt!.logs).to.not.be.undefined;
+  const closeEvent = receipt!.logs.find(event => (event as EventLog).fragment.name === 'ProposalClosed') as EventLog | undefined;
   expect(closeEvent).to.not.be.undefined;
   expect(closeEvent!.args).to.not.be.undefined;
-  const [_, topChoice] = closeEvent!.args!;
-  return topChoice
+  const [_, topChoice] = closeEvent!.args;
+  return topChoice as bigint;
 }
 
 describe("DAOv1", function () {
   async function deployDao(gaslessAddress?:string, aclName?:string) {
-    let acl: Contract | undefined;
+    let acl_address = ethers.ZeroAddress;
     if (aclName) {
       const ACLv1 = await ethers.getContractFactory(aclName);
-      acl = await ACLv1.deploy();
-      await acl.deployed()
+      const acl = await ACLv1.deploy();
+      await acl.waitForDeployment();
+      acl_address = await acl.getAddress();
     }
 
     const DAOv1_factory = await ethers.getContractFactory("DAOv1");
-    const dao = await DAOv1_factory.deploy(acl ? acl.address : ethers.constants.AddressZero, gaslessAddress ?? ethers.constants.AddressZero);
-    await dao.deployed();
-    return { dao };
+    const dao = await DAOv1_factory.deploy(acl_address, gaslessAddress ?? ethers.ZeroAddress);
+    await dao.waitForDeployment();
+
+    return { dao, dao_address: await dao.getAddress(), acl_address };
   }
 
   it("Should create proposals", async function () {
@@ -79,41 +64,47 @@ describe("DAOv1", function () {
 
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(1);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(0);
-
     await (await dao.castVote(proposalId, 2)).wait();
+
     const topChoice = await closeProposal(dao, proposalId);
-    expect(topChoice.toNumber()).to.equal(2);
+    expect(topChoice).to.equal(2n);
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(0);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(1);
-    expect(await dao.getVoteOf(proposalId, (await ethers.getSigners())[0].address)).to.include(2);
-    expect(await dao.getVoteCounts(proposalId)).to.deep.include(BigNumber.from(1));
-    expect(await dao.getVotes(proposalId)).to.deep.equal([[(await ethers.getSigners())[0].address], [2]]);
+
+    const signer_addr = (await ethers.getSigners())[0].address;
+
+    expect(await dao.getVoteOf(proposalId, signer_addr)).to.include(2n);
+    expect(await dao.getVoteCounts(proposalId)).to.deep.include(1n);
+    expect(await dao.getVotes(proposalId)).to.deep.equal([[signer_addr], [2n]]);
   });
 
   it("Should cast vote on DAO with whitelist ACL", async function () {
-    const { dao } = await deployDao(undefined, 'WhitelistVotersACLv1');
+    const { dao, dao_address, acl_address } = await deployDao(undefined, 'WhitelistVotersACLv1');
     const proposalId = await addProposal(dao, TEST_PROPOSALS[0]);
 
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(1);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(0);
 
-    const acl = (await ethers.getContractFactory("WhitelistVotersACLv1")).attach(await dao.getACL());
+    const acl = await ethers.getContractAt("WhitelistVotersACLv1", acl_address);
+
     // Whitelist the first voter.
-    await (await acl.setEligibleVoters(dao.address, proposalId, [(await ethers.getSigners())[1].address])).wait();
+    const signers = await ethers.getSigners();
+    const evtx = await acl.setEligibleVoters(dao_address, proposalId, [signers[1].address]);
+    await evtx.wait();
 
     // Connect to DAO instance with the first voter.
-    const daoVoter = (await (await ethers.getContractFactory("DAOv1")).attach(dao.address)).connect((await ethers.getSigners())[1]);
-    await (await daoVoter.castVote(proposalId, 2)).wait();
-    const aclVoter = acl.connect((await ethers.getSigners())[1]);
+    const daoVoter = (await ethers.getContractAt("DAOv1", dao_address)).connect(signers[1]);
+    const cvtx = await daoVoter.castVote(proposalId, 2n);
+    cvtx.wait();
 
     // close the poll.
     const topChoice = await closeProposal(dao, proposalId);
-    expect(topChoice.toNumber()).to.equal(2);
+    expect(topChoice).to.equal(2n);
     expect((await dao.getActiveProposals(0, 100)).length).to.equal(0);
     expect((await dao.getPastProposals(0, 100)).length).to.equal(1);
-    expect(await dao.getVoteOf(proposalId, (await ethers.getSigners())[1].address)).to.include(2);
-    expect(await dao.getVoteCounts(proposalId)).to.deep.include(BigNumber.from(1));
-    expect(await dao.getVotes(proposalId)).to.deep.equal([[(await ethers.getSigners())[1].address], [2]]);
+    expect(await dao.getVoteOf(proposalId, signers[1].address)).to.include(2n);
+    expect(await dao.getVoteCounts(proposalId)).to.deep.include(1n);
+    expect(await dao.getVotes(proposalId)).to.deep.equal([[signers[1].address], [2n]]);
   });
 
   it('Should accept proxy votes', async function () {
@@ -121,23 +112,20 @@ describe("DAOv1", function () {
     // You can set up sapphire-dev image and run the test like this:
     // docker run -it -p8545:8545 -p8546:8546 ghcr.io/oasisprotocol/sapphire-dev -to 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
     // npx hardhat test --grep proxy --network sapphire-localnet
-    if ((await ethers.provider.getNetwork()).chainId == 1337) {
+    if ((await ethers.provider.getNetwork()).chainId == 1337n) {
       this.skip();
     }
-    const signer = ethers.provider.getSigner(0);
+    const signer = await ethers.provider.getSigner(0);
 
     // Setup proxy signer contract
-    console.log('    - Deploying GaslessVoting');
     const GaslessVoting_factory = await ethers.getContractFactory('GaslessVoting');
-    const gv = await GaslessVoting_factory.deploy(signer.getAddress(), {value: ethers.utils.parseEther('1')});
-    await gv.deployed();
-    console.log('      =', gv.address);
+    const gv = await GaslessVoting_factory.deploy(signer.getAddress(), {value: ethers.parseEther('1')});
+    await gv.waitForDeployment();
+    const gv_address = await gv.getAddress();
 
     // Configure DAO with proxy signer contract
-    console.log('    - Deploying DAOv1');
-    const { dao } = await deployDao(gv.address);
-    await gv.setDAO(dao.address);
-    console.log('      =', dao.address);
+    const { dao, dao_address } = await deployDao(gv_address);
+    await gv.setDAO(dao_address);
 
     // Add a proposal, and request to vote on it
     const proposalId = await addProposal(dao, TEST_PROPOSALS[0]);
@@ -148,11 +136,11 @@ describe("DAOv1", function () {
     };
 
     // Sign voting request
-    const signature = await signer._signTypedData({
+    const signature = await signer.signTypedData({
       name: "DAOv1.GaslessVoting",
       version: "1",
-      chainId: await signer.getChainId(),
-      verifyingContract: gv.address
+      chainId: (await ethers.provider.getNetwork()).chainId,
+      verifyingContract: gv_address
     }, {
       VotingRequest: [
         { name: 'voter', type: "address" },
@@ -160,23 +148,20 @@ describe("DAOv1", function () {
         { name: 'choiceId', type: 'uint256' }
       ]
     }, request);
-    const rsv = ethers.utils.splitSignature(signature);
+    const rsv = ethers.Signature.from(signature);
 
     // Submit voting request to get signed transaction
     //const nonce = await gv.provider.getTransactionCount(await gv.signerAddr());
-    const gasPrice = await gv.provider.getGasPrice();
+    const gasPrice = (await gv.runner?.provider?.getFeeData())?.gasPrice!;
     const tx = await gv.makeVoteTransaction(gasPrice, request, rsv);
+    const provider = gv.runner?.provider!;
 
     // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
-    console.log('    - Submitting vote transaction');
-    const plain_provider = new StaticJsonRpcProvider(ethers.provider.connection);
-    let plain_resp = await plain_provider.sendTransaction(tx);
-    let receipt = await gv.provider.waitForTransaction(plain_resp.hash);
-    console.log('      =', receipt.transactionHash);
+    let plain_resp = await provider.broadcastTransaction(tx);
+    await plain_resp.wait();
 
-    console.log('    - Closing Proposal');
     const closed = await dao.closeProposal(proposalId);
     const closed_receipt = await closed.wait();
-    expect(Number(closed_receipt.events![0].args!.topChoice)).to.equal(1);
+    expect((closed_receipt!.logs![0] as EventLog).args!.topChoice).to.equal(1n);
   });
 });
