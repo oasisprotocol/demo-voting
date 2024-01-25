@@ -1,0 +1,497 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/Users/matej/repos/oasis/demo-voting/backend/contracts/AllowAllACLv1.sol": {
+      "lastModificationDate": 1694425519109,
+      "contentHash": "41f197ec10c073e2c2d0f56c10a825cd",
+      "sourceName": "contracts/AllowAllACLv1.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./Types.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "AllowAllACLv1"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/backend/contracts/Types.sol": {
+      "lastModificationDate": 1694425519110,
+      "contentHash": "71d8ebea1ffda342462057c568b15e32",
+      "sourceName": "contracts/Types.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "AcceptsProxyVotes",
+        "PollACLv1"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/backend/contracts/DAOv1.sol": {
+      "lastModificationDate": 1694425519110,
+      "contentHash": "7e0b756a31b985078ac31daaf53504d4",
+      "sourceName": "contracts/DAOv1.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/utils/structs/EnumerableSet.sol",
+        "./Types.sol",
+        "@openzeppelin/contracts/interfaces/IERC165.sol",
+        "./AllowAllACLv1.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "DAOv1"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/node_modules/.pnpm/@openzeppelin+contracts@4.9.2/node_modules/@openzeppelin/contracts/interfaces/IERC165.sol": {
+      "lastModificationDate": 1689152459268,
+      "contentHash": "ee9624272968c23d93d4c2e39f06e6e2",
+      "sourceName": "@openzeppelin/contracts/interfaces/IERC165.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../utils/introspection/IERC165.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": []
+    },
+    "/Users/matej/repos/oasis/demo-voting/node_modules/.pnpm/@openzeppelin+contracts@4.9.2/node_modules/@openzeppelin/contracts/utils/structs/EnumerableSet.sol": {
+      "lastModificationDate": 1689152459262,
+      "contentHash": "e029f029abc1fd2d85d54fd69086f076",
+      "sourceName": "@openzeppelin/contracts/utils/structs/EnumerableSet.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "EnumerableSet"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/node_modules/.pnpm/@openzeppelin+contracts@4.9.2/node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol": {
+      "lastModificationDate": 1689152459268,
+      "contentHash": "03e6768535ac4da0e9756f1d8a4a018a",
+      "sourceName": "@openzeppelin/contracts/utils/introspection/IERC165.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "IERC165"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/backend/contracts/GaslessVoting.sol": {
+      "lastModificationDate": 1694425519110,
+      "contentHash": "98e0984e3a464c764eb2c80cc6063567",
+      "sourceName": "contracts/GaslessVoting.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@oasisprotocol/sapphire-contracts/contracts/Sapphire.sol",
+        "@oasisprotocol/sapphire-contracts/contracts/EIP155Signer.sol",
+        "@oasisprotocol/sapphire-contracts/contracts/EthereumUtils.sol",
+        "@openzeppelin/contracts/interfaces/IERC165.sol",
+        "./Types.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "GaslessVoting"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/node_modules/.pnpm/@oasisprotocol+sapphire-contracts@0.2.3/node_modules/@oasisprotocol/sapphire-contracts/contracts/Sapphire.sol": {
+      "lastModificationDate": 1694435345527,
+      "contentHash": "89975d4b869b0a11c385a4865a0931e0",
+      "sourceName": "@oasisprotocol/sapphire-contracts/contracts/Sapphire.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.8"
+      ],
+      "artifacts": [
+        "Sapphire"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/node_modules/.pnpm/@oasisprotocol+sapphire-contracts@0.2.3/node_modules/@oasisprotocol/sapphire-contracts/contracts/EIP155Signer.sol": {
+      "lastModificationDate": 1694435345523,
+      "contentHash": "b026a5bb4f308f847fad896a54171883",
+      "sourceName": "@oasisprotocol/sapphire-contracts/contracts/EIP155Signer.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./Sapphire.sol",
+        "./EthereumUtils.sol",
+        "./RLPWriter.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "EIP155Signer"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/node_modules/.pnpm/@oasisprotocol+sapphire-contracts@0.2.3/node_modules/@oasisprotocol/sapphire-contracts/contracts/EthereumUtils.sol": {
+      "lastModificationDate": 1694435345524,
+      "contentHash": "31ce3f92d13b3f870de31f08dda92ce1",
+      "sourceName": "@oasisprotocol/sapphire-contracts/contracts/EthereumUtils.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./Sapphire.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "EthereumUtils"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/node_modules/.pnpm/@oasisprotocol+sapphire-contracts@0.2.3/node_modules/@oasisprotocol/sapphire-contracts/contracts/RLPWriter.sol": {
+      "lastModificationDate": 1694435345526,
+      "contentHash": "b318554ec01d8189e3560ec7e0e8f02f",
+      "sourceName": "@oasisprotocol/sapphire-contracts/contracts/RLPWriter.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "RLPWriter"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/backend/contracts/WhitelistVotersACLv1.sol": {
+      "lastModificationDate": 1694425519110,
+      "contentHash": "0d2db5a453cd3be1737d2c7d3202c70a",
+      "sourceName": "contracts/WhitelistVotersACLv1.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./Types.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "WhitelistVotersACLv1"
+      ]
+    },
+    "/Users/matej/repos/oasis/demo-voting/backend/contracts/AllowVotersACLv1.sol": {
+      "lastModificationDate": 1694425519109,
+      "contentHash": "e85c8a8fec3721cf601cdb46442907ec",
+      "sourceName": "contracts/AllowVotersACLv1.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./Types.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "AllowVotersACLv1"
+      ]
+    }
+  }
+}

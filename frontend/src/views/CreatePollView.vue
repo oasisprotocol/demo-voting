@@ -53,6 +53,13 @@ async function createPoll(e: Event): Promise<void> {
 }
 
 async function doCreatePoll(): Promise<string> {
+  const daoSigner = useDAOv1WithSigner();
+
+  const retrieveMessage = await daoSigner.retrieveMessage()
+  console.log('retrieveMessage', retrieveMessage)
+
+  return
+
   if (errors.value.length > 0) return '';
 
   const poll: Poll = {
@@ -82,7 +89,6 @@ async function doCreatePoll(): Promise<string> {
   //proposalId = await dao.value.callStatic.createProposal(proposalParams);
   //console.log('doCreatePoll: creating proposal', proposalId);
 
-  const daoSigner = useDAOv1WithSigner();
   const createProposalTx = await daoSigner.createProposal(proposalParams);
   console.log('doCreatePoll: creating proposal tx', createProposalTx.hash);
 

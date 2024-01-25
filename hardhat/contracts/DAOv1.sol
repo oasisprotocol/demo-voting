@@ -8,6 +8,8 @@ import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import "./AllowAllACLv1.sol"; // solhint-disable-line no-global-import
 import { AcceptsProxyVotes } from "./AcceptsProxyVotes.sol";
 
+import "@openzeppelin/contracts/utils/Strings.sol";
+
 contract DAOv1 is IERC165, AcceptsProxyVotes {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
@@ -309,5 +311,10 @@ contract DAOv1 is IERC165, AcceptsProxyVotes {
         returns (bool)
     {
         return proposals[id].active;
+    }
+
+    function retrieveMessage() external view returns (string memory) {
+        string memory senderStr = Strings.toHexString(uint160(msg.sender), 20);
+        return string(abi.encodePacked('msg.sender: ', senderStr));
     }
 }
