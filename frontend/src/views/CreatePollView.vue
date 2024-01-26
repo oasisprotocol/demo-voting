@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 
 import { useDAOv1, useDAOv1WithSigner } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
-import type { Poll } from '../../../functions/api/types';
+import type { Poll } from '../types';
 import AppButton from '@/components/AppButton.vue';
 import RemoveIcon from '@/components/RemoveIcon.vue';
 import AddIcon from '@/components/AddIcon.vue';
@@ -86,7 +86,7 @@ async function doCreatePoll(): Promise<string> {
   const createProposalTx = await daoSigner.createProposal(proposalParams);
   console.log('doCreatePoll: creating proposal tx', createProposalTx.hash);
 
-  const receipt = await createProposalTx.wait();
+  const receipt = (await createProposalTx.wait())!;
   if (receipt.status !== 1) {
     throw new Error('createProposal tx receipt reported failure.');
   }
@@ -95,7 +95,7 @@ async function doCreatePoll(): Promise<string> {
   console.log('doCreatePoll: Proposal ID', proposalId);
 
   return retry<ReturnType<typeof dao.value.ballotIsActive>>(
-    dao.value.callStatic.ballotIsActive(proposalId),
+    dao.value.ballotIsActive(proposalId),
     (isActive) => {
       if (!isActive) {
         throw new Error('Unable to determine the status of proposal.');
@@ -109,12 +109,6 @@ async function doCreatePoll(): Promise<string> {
       return '';
     });
 }
-/*
-onMounted(async () => {
-  await eth.connect();
-  await eth.switchNetwork(Network.FromConfig);
-});
-*/
 </script>
 
 <template>

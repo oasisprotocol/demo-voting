@@ -2,10 +2,10 @@
 import { ethers } from 'ethers';
 import { onMounted, ref, shallowRef } from 'vue';
 
-import type { Poll } from '../../../functions/api/types';
+import type { Poll } from '../types';
 import type { DAOv1 } from '../contracts';
 import { useDAOv1, usePollACLv1 } from '../contracts';
-import { Network, useEthereumStore } from '../stores/ethereum';
+import { useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppPoll from '@/components/AppPoll.vue';
 import PollLoader from '@/components/PollLoader.vue';
@@ -54,26 +54,17 @@ async function fetchProposals(
   return proposalsMap;
 }
 
-async function switchNetwork() {
-  await eth.switchNetwork(Network.FromConfig);
-}
-
 onMounted(async () => {
-  //await eth.connect();
-  //isCorrectNetworkSelected.value = eth.isSapphire.valueOf();
-  //await eth.switchNetwork(Network.FromConfig);
-  // Check again if the right network has been selected
-  //isCorrectNetworkSelected.value = eth.isSapphire.valueOf();
 
   const acl = await usePollACLv1();
-  const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
-  canCreatePoll.value = await acl.value.callStatic.canCreatePoll(dao.value.address, userAddress);
+  const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.ZeroAddress;
+  canCreatePoll.value = await acl.value.canCreatePoll(await dao.value.getAddress(), userAddress);
 
-  const { number: blockTag } = await eth.provider.getBlock('latest');
+  const { number: blockTag } = (await eth.provider.getBlock('latest'))!;
 
   await Promise.all([
     fetchProposals((offset, batchSize) =>
-      dao.value.callStatic.getActiveProposals(offset, batchSize, {
+      dao.value.getActiveProposals(offset, batchSize, {
         blockTag,
       }),
     ).then((proposalsMap) => {
@@ -81,7 +72,7 @@ onMounted(async () => {
       isLoadingActive.value = false;
     }),
     fetchProposals((offset, batchSize) => {
-      return dao.value.callStatic.getPastProposals(offset, batchSize, {
+      return dao.value.getPastProposals(offset, batchSize, {
         blockTag,
       });
     }).then((proposalsMap) => {
@@ -94,12 +85,7 @@ onMounted(async () => {
 
 <template>
   <section class="pt-5">
-    <!--
-    <h2 class="capitalize text-white text-2xl font-bold mb-4">Poll overview</h2>
-    <p class="text-white text-base mb-20">Bellow is your overview of your active and past polls</p>
-    -->
-
-    <div v-if="eth.signer && canCreatePoll" class="flex justify-center mb-6">
+    <div v-if="canCreatePoll" class="flex justify-center mb-6">
       <RouterLink to="polls">
         <AppButton variant="secondary">&plus;&nbsp;&nbsp;Create a new poll</AppButton>
       </RouterLink>
@@ -128,7 +114,7 @@ onMounted(async () => {
       v-if="!isLoadingActive && Object.keys(activePolls).length <= 0"
       class="text-white text-center mb-6 font-normal"
     >
-      You currently have no active polls
+      There are no active polls
     </p>
 
     <h2 class="capitalize text-white text-2xl font-bold mb-6">Past Polls</h2>
@@ -142,7 +128,7 @@ onMounted(async () => {
         :description="poll.params.description"
         :creator-address="poll.params.creator"
         :choices="poll.params.choices"
-        :outcome="poll.proposal.topChoice"
+        :outcome="Number(poll.proposal.topChoice)"
       />
     </div>
     <div v-else>

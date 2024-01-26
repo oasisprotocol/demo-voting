@@ -36,12 +36,16 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Build backend
-        working-directory: backend
+        working-directory: hardhat
         run: |
           pnpm build
       - name: Test backend
-        working-directory: backend
+        working-directory: hardhat
         run: pnpm test
+      - name: Build TypeChain contracts
+        working-directory: contracts
+        run: |
+          pnpm build
       - name: Build frontend
         working-directory: frontend
         run: pnpm build

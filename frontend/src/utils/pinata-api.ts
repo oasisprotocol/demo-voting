@@ -1,4 +1,4 @@
-import type { Poll } from '../../../functions/api/types';
+import type { Poll } from '../types';
 
 export abstract class PinataApi {
   static JWT_TOKEN = import.meta.env.VITE_PINATA_JWT;

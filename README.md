@@ -32,8 +32,12 @@ npx hardhat node
 Deploy smart contracts to that local network:
 
 ```sh
-npx hardhat deploy --network localhost
+npx hardhat deploy --network sapphire-localnet
 ```
+
+You can use the `--gaslessAccounts` and `--gaslessFunds` parameters to set
+the number of proxy accounts that can be used to pay for the gas for voters
+and the amount of tokens each of those accounts will be initially funded.
 
 The deployed DAO contract address will be reported. Remember it and store it
 inside the `frontend` folder's `.env.development`, for example:
@@ -42,17 +46,6 @@ inside the `frontend` folder's `.env.development`, for example:
 VITE_DAO_V1_ADDR=0x5FbDB2315678afecb367f032d93F642f64180aa3
 ```
 
-### Gasless Voting
-
-Deploy with `--gasless` flag to enable gasless voting:
-
-```shell
-pnpm hardhat --network localhost deploy --gasless
-```
-
-You can use the `--gaslessAccounts` and `--gaslessFunds` parameters to set
-the number of proxy accounts that can be used to pay for the gas in a single
-block and the amount of tokens each of those accounts will be initially funded.
 
 ### Monitoring Signer Accounts
 
@@ -92,7 +85,7 @@ values:
   can close the poll, only whitelisted accounts can vote
 
 ```shell
-npx hardhat --network localhost deploy --acl AllowVoterACLv1 
+npx hardhat --network localhost deploy --acl AllowVoterACLv1
 ```
 
 #### Whitelisting the Voters (WhitelistVotersACLv1 only)
@@ -115,7 +108,7 @@ list will overwrite any existing whitelisted users. For example:
 Then, execute the following hardhat task:
 
 ```shell
-npx hardhat --network localhost whitelist-voters 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 e386cceaa6ceea2f935d89951e522ac6d7ac777503b234d61b193439de571cfc voters.txt 
+npx hardhat --network localhost whitelist-voters 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 e386cceaa6ceea2f935d89951e522ac6d7ac777503b234d61b193439de571cfc voters.txt
 ```
 
 ### Deploying to Sapphire Localnet, Testnet and Mainnet

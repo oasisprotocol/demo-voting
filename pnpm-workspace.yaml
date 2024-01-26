@@ -1,1 +1,1 @@
-packages: [frontend, backend, functions]
+packages: [hardhat, contracts, functions, frontend]

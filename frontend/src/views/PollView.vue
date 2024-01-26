@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 import { computed, onMounted, ref } from 'vue';
 
-import type { Poll } from '../../../functions/api/types';
+import type { Poll } from '../types';
 import type { DAOv1 } from '../contracts';
 import {
   useDAOv1,
@@ -18,7 +18,6 @@ import UncheckedIcon from '@/components/UncheckedIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
-import { retry } from '@/utils/promise';
 
 const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
@@ -33,11 +32,11 @@ const hasVoted = ref(false);
 const isClosing = ref(false);
 const isClosed = ref(false);
 const poll = ref<DAOv1.ProposalWithIdStructOutput & { ipfsParams: Poll }>();
-const winningChoice = ref<number | undefined>(undefined);
-const selectedChoice = ref<number | undefined>();
-const existingVote = ref<number | undefined>(undefined);
-const voteCounts = ref<BigNumber[]>([]);
-const votes = ref<[string[], number[]]>([[], []]);
+const winningChoice = ref<bigint | undefined>(undefined);
+const selectedChoice = ref<bigint | undefined>();
+const existingVote = ref<bigint | undefined>(undefined);
+const voteCounts = ref<bigint[]>([]);
+const votes = ref<[string[], bigint[]]>([[], []]);
 let canClosePoll = ref<Boolean>(false);
 let canAclVote = ref<Boolean>(false);
 
@@ -56,16 +55,23 @@ const canSelect = computed(() => {
 });
 
 async function closeBallot(): Promise<void> {
-  // TODO: ensure we're on the correct network first!
-  await eth.switchNetwork();
+  await eth.switchNetwork();  // ensure we're on the correct network first!
   const signerDao = useDAOv1WithSigner();
+  const rotx = await signerDao.closeProposal.staticCallResult(proposalId);
+  console.log('rotx', rotx);
   const tx = await signerDao.closeProposal(proposalId);
+  console.log('Close proposal tx', tx);
   isClosing.value = true;
-  const receipt = await tx.wait();
+  try {
+    const receipt = await tx.wait();
 
-  if (receipt.status != 1) throw new Error('close ballot tx failed');
-  else {
-    isClosed.value = true;
+    if (receipt!.status != 1) throw new Error('close ballot tx failed');
+    else {
+      isClosed.value = true;
+    }
+  }
+  finally {
+    isClosing.value = false;
   }
 }
 
@@ -103,12 +109,12 @@ async function doVote(): Promise<void> {
     };
 
     // Sign voting request
-    const signature = await eth.signer._signTypedData(
+    const signature = await eth.signer.signTypedData(
       {
         name: 'DAOv1.GaslessVoting',
         version: '1',
         chainId: import.meta.env.VITE_NETWORK,
-        verifyingContract: gv.address,
+        verifyingContract: await gv.getAddress(),
       },
       {
         VotingRequest: [
@@ -119,19 +125,19 @@ async function doVote(): Promise<void> {
       },
       request,
     );
-    const rsv = ethers.utils.splitSignature(signature);
+    const rsv = ethers.Signature.from(signature);
 
     // Submit voting request to get signed transaction
-    const gasPrice = await dao.value.provider.getGasPrice();
-    console.log('doVote.gasless: constructing tx', 'gasPrice', gasPrice);
-    const tx = await gv.makeVoteTransaction(gasPrice, request, rsv);
+    const feeData = await eth.provider.getFeeData();
+    console.log('doVote.gasless: constructing tx', 'gasPrice', feeData.gasPrice);
+    const tx = await gv.makeVoteTransaction(feeData.gasPrice!, request, rsv);
 
     // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
-    let plain_resp = await eth.provider.sendTransaction(tx);
+    let plain_resp = await eth.provider.broadcastTransaction(tx);
     console.log('doVote.gasless: waiting for tx', plain_resp.hash);
-    const receipt = await gv.provider.waitForTransaction(plain_resp.hash);
+    const receipt = await eth.provider.waitForTransaction(plain_resp.hash);
 
-    if (receipt.status != 1) throw new Error('cast vote tx failed');
+    if (receipt!.status != 1) throw new Error('cast vote tx failed');
 
     console.log('doVote.gasless: success');
   } else {
@@ -140,14 +146,14 @@ async function doVote(): Promise<void> {
     const tx = await dao.value.castVote(proposalId, choice);
     const receipt = await tx.wait();
 
-    if (receipt.status != 1) throw new Error('cast vote tx failed');
+    if (receipt!.status != 1) throw new Error('cast vote tx failed');
   }
 
   existingVote.value = choice;
 }
 
 onMounted(async () => {
-  const [active, params, topChoice] = await dao.value.callStatic.proposals(proposalId);
+  const [active, params, topChoice] = await dao.value.proposals(proposalId);
   const proposal = { id: proposalId, active, topChoice, params };
   const ipfsParamsRes = await fetch(`https://w3s.link/ipfs/${params.ipfsHash}`);
   const ipfsParams: Poll = await ipfsParamsRes.json();
@@ -156,24 +162,24 @@ onMounted(async () => {
     ipfsParams: Poll;
   };
   if (!proposal.active) {
-    voteCounts.value = await dao.value.callStatic.getVoteCounts(proposalId);
+    voteCounts.value = await dao.value.getVoteCounts(proposalId);
     selectedChoice.value = winningChoice.value = proposal.topChoice;
     if (proposal.params.publishVotes) {
-      votes.value = await dao.value.callStatic.getVotes(proposalId);
+      votes.value = await dao.value.getVotes(proposalId);
     }
   }
 
   const acl = await usePollACLv1();
-  const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.constants.AddressZero;
+  const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.ZeroAddress;
 
   await Promise.all([
-    acl.value.callStatic
-      .canManagePoll(dao.value.address, proposalId, userAddress)
+    acl.value
+      .canManagePoll(await dao.value.getAddress(), proposalId, userAddress)
       .then((status) => {
         canClosePoll.value = status;
       }),
-    acl.value.callStatic
-      .canVoteOnPoll(dao.value.address, proposalId, userAddress)
+    acl.value
+      .canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress)
       .then((status) => {
         canAclVote.value = status;
       }),
@@ -197,16 +203,16 @@ onMounted(async () => {
             v-for="(choice, choiceId) in poll.ipfsParams.choices"
             :key="choiceId"
             :class="{
-              selected: selectedChoice === choiceId || choiceId === winningChoice,
+              selected: Number(selectedChoice) === choiceId || choiceId === Number(winningChoice),
               'pointer-events-none': isLoading || !poll.proposal.active,
             }"
             class="choice-btn mb-2 w-full"
             variant="choice"
-            @click="selectedChoice = selectedChoice == choiceId ? undefined : choiceId"
-            :disabled="!canSelect && winningChoice !== undefined && choiceId !== winningChoice"
+            @click="selectedChoice = selectedChoice == BigInt(choiceId) ? undefined : BigInt(choiceId)"
+            :disabled="!canSelect && winningChoice !== undefined && BigInt(choiceId) !== winningChoice"
           >
             <span class="flex gap-2">
-              <CheckedIcon v-if="selectedChoice === choiceId || choiceId === winningChoice" />
+              <CheckedIcon v-if="selectedChoice === BigInt(choiceId) || BigInt(choiceId) === winningChoice" />
               <UncheckedIcon v-else />
               <span class="leading-6">{{ choice }}</span>
               <span class="leading-6" v-if="!poll.proposal.active"
@@ -227,11 +233,11 @@ onMounted(async () => {
         >
           <label class="inline-block mb-5">Individual votes</label>
           <p v-for="(addr, i) in votes[0]" :key="i" class="text-white text-base" variant="addr">
-            {{ addr }}: {{ poll.ipfsParams.choices[votes[1][i]] }}
+            {{ addr }}: {{ poll.ipfsParams.choices[Number(votes[1][i])] }}
           </p>
         </div>
 
-        <div v-if="poll?.proposal?.active && eth.isSapphire" class="flex justify-between items-start mt-6">
+        <div v-if="poll?.proposal?.active && eth.signer && eth.isSapphire" class="flex justify-between items-start mt-6">
           <AppButton
             type="submit"
             variant="primary"
@@ -243,7 +249,11 @@ onMounted(async () => {
           </AppButton>
 
           <div v-if="canClosePoll">
-            <AppButton variant="secondary" @click="closeBallot">
+            <AppButton
+              variant="secondary"
+              @click="closeBallot"
+              :disabled="isClosing"
+            >
               <span v-if="isClosing">Closing...</span>
               <span v-else>Close poll</span>
             </AppButton>
@@ -294,7 +304,7 @@ onMounted(async () => {
       >
         <span class="flex gap-2">
           <CheckIcon class="w-7" />
-          {{ poll.ipfsParams.choices[selectedChoice] }}
+          {{ poll.ipfsParams.choices[Number(selectedChoice)] }}
         </span>
       </AppButton>
 
