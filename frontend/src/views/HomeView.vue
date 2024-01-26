@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ethers } from "ethers";
+import { ethers } from 'ethers';
 import { onMounted, ref, shallowRef } from 'vue';
 
 import type { Poll } from '../types';
