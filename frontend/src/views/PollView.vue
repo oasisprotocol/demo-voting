@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ethers } from 'ethers';
+import { ethers, getBytes } from 'ethers';
 import { computed, onMounted, ref } from 'vue';
 
 import type { Poll } from '../types';
@@ -19,7 +19,7 @@ import UncheckedIcon from '@/components/UncheckedIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
-import { PinataApi } from '@/utils/pinata-api';
+import { PinataApi, decryptJSON } from '@/utils';
 
 const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
@@ -164,8 +164,9 @@ onMounted(async () => {
   const {active, params, topChoice} = await dao.value.PROPOSALS(proposalId);
   const proposal = { id: proposalId, active, topChoice, params };
   const ipfsParamsRes = await PinataApi.fetch(params.ipfsHash);
-  const ipfsParams: Poll = await ipfsParamsRes.json();
-
+  const ipfsData = new Uint8Array(await ipfsParamsRes.arrayBuffer());
+  const ipfsParams: Poll = decryptJSON(getBytes(proposal.params.ipfsSecret), ipfsData);
+  console.log('Retrieved poll JSON', ipfsParams);
   poll.value = { proposal, ipfsParams } as unknown as PollManager.ProposalWithIdStructOutput & {
     ipfsParams: Poll;
   };

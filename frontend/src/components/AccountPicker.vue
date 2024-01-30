@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 
 import { Network, networkName, useEthereumStore } from '../stores/ethereum';
 import JazzIcon from './JazzIcon.vue';
-import { abbrAddr } from '@/utils/utils';
-import { useMedia } from '@/utils/useMediaQuery';
+import { abbrAddr } from '@/utils';
+import { useMedia } from '@/useMediaQuery';
 import detectEthereumProvider from '@metamask/detect-provider';
 import type { EIP1193Provider } from '@/stores/eip1193';
 
