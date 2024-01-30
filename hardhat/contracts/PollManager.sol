@@ -180,7 +180,7 @@ contract PollManager is IERC165, IPollManager {
 
         Ballot storage ballot = s_ballots[proposalId];
 
-        uint xorMask = ballot.xorMask = uint256(keccak256(abi.encodePacked(address(this), msg.sender, blockhash(1))));
+        uint xorMask = ballot.xorMask = uint256(keccak256(abi.encodePacked(address(this), msg.sender)));
 
         for (uint256 i; i < in_params.numChoices; ++i)
         {
@@ -197,29 +197,6 @@ contract PollManager is IERC165, IPollManager {
         emit ProposalCreated(proposalId);
 
         return proposalId;
-    }
-
-    /// Paginated access to the active proposals
-    function getActiveProposals(uint256 in_offset, uint256 in_count)
-        external view
-        returns (ProposalWithId[] memory out_proposals)
-    {
-        if ((in_offset + in_count) > ACTIVE_PROPOSALS.length())
-        {
-            in_count = ACTIVE_PROPOSALS.length() - in_offset;
-        }
-
-        out_proposals = new ProposalWithId[](in_count);
-
-        for (uint256 i; i < in_count; ++i)
-        {
-            bytes32 id = ACTIVE_PROPOSALS.at(in_offset + i);
-
-            out_proposals[i] = ProposalWithId({
-                id: id,
-                proposal: PROPOSALS[id]
-            });
-        }
     }
 
     function bool2int(bool a)
@@ -343,6 +320,34 @@ contract PollManager is IERC165, IPollManager {
         internal_castVote(msg.sender, in_proposalId, in_choiceId, in_data);
     }
 
+    /// Paginated access to the active proposals
+    /// Pagination is in reverse order, so most recent first
+    function getActiveProposals(uint256 in_offset, uint256 in_limit)
+        external view
+        returns (uint out_count, ProposalWithId[] memory out_proposals)
+    {
+        out_count = ACTIVE_PROPOSALS.length();
+
+        if ((in_offset + in_limit) > out_count)
+        {
+            in_limit = out_count - in_offset;
+        }
+
+        out_proposals = new ProposalWithId[](in_limit);
+
+        for (uint256 i; i < in_limit; ++i)
+        {
+            bytes32 id = ACTIVE_PROPOSALS.at(out_count - 1 - in_offset - i);
+
+            out_proposals[i] = ProposalWithId({
+                id: id,
+                proposal: PROPOSALS[id]
+            });
+        }
+    }
+
+    /// Past proposals are in reverse order
+    /// So the most recently closed proposal pops up in the list after closure
     function getPastProposals(uint256 in_offset, uint256 in_limit)
         external view
         returns (uint out_count, ProposalWithId[] memory out_proposals)
@@ -358,7 +363,7 @@ contract PollManager is IERC165, IPollManager {
 
         for (uint256 i; i < in_limit; ++i)
         {
-            bytes32 id = PAST_PROPOSALS[in_offset + i];
+            bytes32 id = PAST_PROPOSALS[out_count - 1 - in_offset - i];
 
             out_proposals[i] = ProposalWithId({
                 id: id,

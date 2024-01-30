@@ -1,6 +1,7 @@
 import '@oasisprotocol/sapphire-hardhat';
 import "@nomicfoundation/hardhat-ethers"
-import { promises as fs } from 'fs';
+import 'hardhat-tracer';
+import { existsSync, promises as fs } from 'fs';
 import path from 'path';
 
 import canonicalize from 'canonicalize';
@@ -8,7 +9,6 @@ import { TASK_COMPILE } from 'hardhat/builtin-tasks/task-names';
 import { HardhatUserConfig, task } from 'hardhat/config';
 
 import '@typechain/hardhat';
-import 'solidity-coverage';
 
 const TASK_EXPORT_ABIS = 'export-abis';
 
@@ -59,7 +59,10 @@ task('deploy')
 
     if( args.viteenv ) {
       console.log(`# Saving environment to ${args.viteenv}`);
-      await fs.unlink(args.viteenv);
+      if( existsSync(args.viteenv) )
+      {
+        await fs.unlink(args.viteenv);
+      }
     }
 
     // Export RPC info etc. from current hardhat config
@@ -101,15 +104,19 @@ task('deploy')
     await contract_GaslessVoting.waitForDeployment();
     await tee(args.viteenv, `VITE_CONTRACT_GASLESSVOTING=${await contract_GaslessVoting.getAddress()}`);
 
+    const pollmanager_acl = await contract_AllowAllACL.getAddress();
     const factory_PollManager = await hre.ethers.getContractFactory('PollManager');
     const contract_PollManager = await factory_PollManager.deploy(
-      await contract_AllowAllACL.getAddress(),
+      pollmanager_acl,
       await contract_GaslessVoting.getAddress()
     );
     await tee(args.viteenv, '');
     await tee(args.viteenv, `# PollManager tx ${contract_PollManager.deploymentTransaction()?.hash}`);
     await contract_PollManager.waitForDeployment();
     await tee(args.viteenv, `VITE_CONTRACT_POLLMANAGER=${await contract_PollManager.getAddress()}`);
+
+    await tee(args.viteenv, '# IPollManagerACL used by PollManager');
+    await tee(args.viteenv, `VITE_CONTRACT_POLLMANAGER_ACL=${pollmanager_acl}`)
 });
 
 const TEST_HDWALLET = {

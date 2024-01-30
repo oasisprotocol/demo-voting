@@ -50,7 +50,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
     // EIP-712 parameters
     bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    string public constant VOTINGREQUEST_TYPE = "VotingRequest(address voter,bytes32 proposalId,uint256 choiceId)";
+    string public constant VOTINGREQUEST_TYPE = "VotingRequest(address voter,address dao,bytes32 proposalId,uint256 choiceId)";
     bytes32 public constant VOTINGREQUEST_TYPEHASH = keccak256(bytes(VOTINGREQUEST_TYPE));
     bytes32 public immutable DOMAIN_SEPARATOR;
 
@@ -119,7 +119,10 @@ contract GaslessVoting is IERC165, IGaslessVoter
         poll.owner = in_creator;
         poll.dao = IPollManager(msg.sender);
 
-        internal_addKeypair(gvid);
+        if( msg.value > 0 )
+        {
+            internal_addKeypair(gvid);
+        }
     }
 
     function onPollClosed(bytes32 in_proposalId)
@@ -165,9 +168,11 @@ contract GaslessVoting is IERC165, IGaslessVoter
         internal view
         returns (EthereumKeypair storage)
     {
-        uint16 x = uint16(bytes2(Sapphire.randomBytes(2, "")));
-
         EthereumKeypair[] storage keypairs = s_polls[in_gvid].keypairs;
+
+        require( keypairs.length > 0, "no keypairs!" );
+
+        uint16 x = uint16(bytes2(Sapphire.randomBytes(2, "")));
 
         uint n = keypairs.length;
 
