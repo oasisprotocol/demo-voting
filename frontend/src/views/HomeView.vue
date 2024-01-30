@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ethers } from 'ethers';
+import { ethers, getBytes } from 'ethers';
 import { onMounted, ref, shallowRef } from 'vue';
 
 import type { Poll } from '../types';
@@ -9,7 +9,7 @@ import { useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppPoll from '@/components/AppPoll.vue';
 import PollLoader from '@/components/PollLoader.vue';
-import { PinataApi } from '@/utils/pinata-api';
+import { PinataApi, decryptJSON } from '@/utils';
 
 const eth = useEthereumStore();
 const dao = usePollManager();
@@ -49,7 +49,8 @@ async function fetchProposals(
 
         try {
           const res = await PinataApi.fetch(ipfsHash);
-          const params = await res.json();
+          const params = decryptJSON(getBytes(proposal.params.ipfsSecret), new Uint8Array(await res.arrayBuffer()))
+          //const params = await res.json();
           proposalsMap[id] = { id, params, proposal } as FullProposal;
         }
         catch (e) {

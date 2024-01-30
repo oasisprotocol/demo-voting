@@ -51,9 +51,10 @@ contract PollManager is IERC165, IPollManager {
 
     struct ProposalParams {
         string ipfsHash;
+        bytes32 ipfsSecret;
         uint8 numChoices;
         bool publishVotes;
-        uint closeTimestamp;
+        uint64 closeTimestamp;
         IPollACL acl;
     }
 

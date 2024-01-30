@@ -8,8 +8,7 @@ import AppButton from '@/components/AppButton.vue';
 import RemoveIcon from '@/components/RemoveIcon.vue';
 import AddIcon from '@/components/AddIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
-import { PinataApi } from '@/utils/pinata-api';
-import { retry } from '@/utils/promise';
+import { retry, PinataApi, encryptJSON } from '@/utils';
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
 
 const eth = useEthereumStore();
@@ -65,14 +64,17 @@ async function doCreatePoll(): Promise<string> {
       publishVotes: publishVotes.value,
     },
   };
+  const {key,cipherbytes} = encryptJSON(poll);
 
-  const res = await PinataApi.pinBody(poll);
+  const res = await PinataApi.pinData(cipherbytes);
   const resJson = await res.json();
   if (res.status !== 201) throw new Error(resJson.error);
   const ipfsHash = resJson.ipfsHash;
+  console.log('ipfsHash', ipfsHash);
 
   const proposalParams: PollManager.ProposalParamsStruct = {
     ipfsHash,
+    ipfsSecret: key,
     numChoices: choices.value.length,
     publishVotes: poll.options.publishVotes,
     closeTimestamp: 0,

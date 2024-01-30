@@ -1,6 +1,8 @@
 import { promises as fs } from 'fs';
 import { globSync } from 'glob';
 
+/// Moves all of the <script> tags from <head> to before </body>
+/// Removes all contract bytecode from the scripts
 async function main() {
     let scripts = [];
     let html = (await fs.readFile('dist/index.html')).toString('utf-8');
