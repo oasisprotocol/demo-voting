@@ -25,14 +25,6 @@
     ".": {
       "import": "./lib/esm/index.js",
       "types": "./lib/esm/index.d.ts"
-    },
-    "./contracts": {
-      "import": "./lib/esm/contracts/contracts/index.js",
-      "types": "./lib/esm/contracts/contracts/index.d.ts"
-    },
-    "./factories": {
-      "import": "./lib/esm/contracts/factories/contracts/index.js",
-      "types": "./lib/esm/contracts/factories/contracts/index.d.ts"
     }
   },
   "devDependencies": {

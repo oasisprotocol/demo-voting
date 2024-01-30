@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-import { useDAOv1, useDAOv1WithSigner } from '../contracts';
+import { usePollManager, usePollManagerWithSigner } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
 import type { Poll } from '../types';
 import AppButton from '@/components/AppButton.vue';
@@ -10,9 +10,10 @@ import AddIcon from '@/components/AddIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import { PinataApi } from '@/utils/pinata-api';
 import { retry } from '@/utils/promise';
+import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
 
 const eth = useEthereumStore();
-const dao = useDAOv1();
+const dao = usePollManager();
 
 const errors = ref<string[]>([]);
 const pollName = ref('');
@@ -70,10 +71,12 @@ async function doCreatePoll(): Promise<string> {
   if (res.status !== 201) throw new Error(resJson.error);
   const ipfsHash = resJson.ipfsHash;
 
-  const proposalParams = {
+  const proposalParams: PollManager.ProposalParamsStruct = {
     ipfsHash,
     numChoices: choices.value.length,
     publishVotes: poll.options.publishVotes,
+    closeTimestamp: 0,
+    acl: import.meta.env.VITE_CONTRACT_ACL_ALLOWALL
   };
 
   console.log('doCreatePoll: Using direct transaction to create proposal');
@@ -82,8 +85,8 @@ async function doCreatePoll(): Promise<string> {
   //proposalId = await dao.value.callStatic.createProposal(proposalParams);
   //console.log('doCreatePoll: creating proposal', proposalId);
 
-  const daoSigner = useDAOv1WithSigner();
-  const createProposalTx = await daoSigner.createProposal(proposalParams);
+  const daoSigner = usePollManagerWithSigner();
+  const createProposalTx = await daoSigner.create(proposalParams, new Uint8Array([]));
   console.log('doCreatePoll: creating proposal tx', createProposalTx.hash);
 
   const receipt = (await createProposalTx.wait())!;

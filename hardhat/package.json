@@ -21,7 +21,7 @@
     "format:prettier": "prettier --write --plugin-search-dir=. --cache '*.json' 'tsconfig/*.json' '{scripts,test}/**/*.ts' 'contracts/**/*.sol'",
     "format:solhint": "solhint --fix 'contracts/**/*.sol'",
     "format": "npm-run-all format:**",
-    "build:compile": "hardhat compile",
+    "build:compile": "hardhat compile --quiet",
     "build": "npm-run-all build:compile",
     "test": "hardhat test",
     "prepublishOnly": "pnpm build"
@@ -42,11 +42,11 @@
     "canonicalize": "^2.0.0",
     "chai": "^4.4.1",
     "hardhat": "^2.19.4",
+    "hardhat-tracer": "^2.7.0",
     "npm-run-all": "^4.1.5",
     "prettier": "^3.2.4",
     "prettier-plugin-solidity": "1.3.1",
     "solhint": "^4.1.1",
-    "solidity-coverage": "^0.8.5",
     "ts-node": "^10.9.2",
     "typechain": "^8.3.2",
     "typescript": "^5.3.3"

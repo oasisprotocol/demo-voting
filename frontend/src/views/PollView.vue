@@ -3,12 +3,13 @@ import { ethers } from 'ethers';
 import { computed, onMounted, ref } from 'vue';
 
 import type { Poll } from '../types';
-import type { DAOv1 } from '../contracts';
+import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
+import { IPollACL__factory } from '@oasisprotocol/demo-voting-contracts';
 import {
-  useDAOv1,
+  usePollManager,
   useGaslessVoting,
-  usePollACLv1,
-  useDAOv1WithSigner
+  usePollACL,
+  usePollManagerWithSigner
 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
@@ -18,25 +19,32 @@ import UncheckedIcon from '@/components/UncheckedIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
+import { PinataApi } from '@/utils/pinata-api';
 
 const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
 
-const dao = useDAOv1();
+const dao = usePollManager();
 const eth = useEthereumStore();
 const gaslessVoting = useGaslessVoting();
+
+type GetVotesReturnT = {
+  out_count: bigint;
+  out_voters: string[];
+  out_choices: PollManager.ChoiceStructOutput[];
+};
 
 const error = ref('');
 const isLoading = ref(false);
 const hasVoted = ref(false);
 const isClosing = ref(false);
 const isClosed = ref(false);
-const poll = ref<DAOv1.ProposalWithIdStructOutput & { ipfsParams: Poll }>();
+const poll = ref<PollManager.ProposalWithIdStructOutput & { ipfsParams: Poll }>();
 const winningChoice = ref<bigint | undefined>(undefined);
 const selectedChoice = ref<bigint | undefined>();
 const existingVote = ref<bigint | undefined>(undefined);
 const voteCounts = ref<bigint[]>([]);
-const votes = ref<[string[], bigint[]]>([[], []]);
+const votes = ref<GetVotesReturnT>({out_count: 0n, out_voters: [], out_choices: []});
 let canClosePoll = ref<Boolean>(false);
 let canAclVote = ref<Boolean>(false);
 
@@ -56,10 +64,8 @@ const canSelect = computed(() => {
 
 async function closeBallot(): Promise<void> {
   await eth.switchNetwork();  // ensure we're on the correct network first!
-  const signerDao = useDAOv1WithSigner();
-  const rotx = await signerDao.closeProposal.staticCallResult(proposalId);
-  console.log('rotx', rotx);
-  const tx = await signerDao.closeProposal(proposalId);
+  const signerDao = usePollManagerWithSigner();
+  const tx = await signerDao.close(proposalId);
   console.log('Close proposal tx', tx);
   isClosing.value = true;
   try {
@@ -103,6 +109,7 @@ async function doVote(): Promise<void> {
     }
 
     const request = {
+      dao: import.meta.env.VITE_CONTRACT_POLLMANAGER,
       voter: await eth.signer.getAddress(),
       proposalId: proposalId,
       choiceId: choice,
@@ -130,7 +137,7 @@ async function doVote(): Promise<void> {
     // Submit voting request to get signed transaction
     const feeData = await eth.provider.getFeeData();
     console.log('doVote.gasless: constructing tx', 'gasPrice', feeData.gasPrice);
-    const tx = await gv.makeVoteTransaction(feeData.gasPrice!, request, rsv);
+    const tx = await gv.makeVoteTransaction(feeData.gasPrice!, request, new Uint8Array([]), rsv);
 
     // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
     let plain_resp = await eth.provider.broadcastTransaction(tx);
@@ -140,10 +147,11 @@ async function doVote(): Promise<void> {
     if (receipt!.status != 1) throw new Error('cast vote tx failed');
 
     console.log('doVote.gasless: success');
-  } else {
+  }
+  else {
     console.log('doVote: casting vote using normal tx');
     await eth.switchNetwork(Network.FromConfig);
-    const tx = await dao.value.castVote(proposalId, choice);
+    const tx = await dao.value.vote(proposalId, choice, new Uint8Array([]));
     const receipt = await tx.wait();
 
     if (receipt!.status != 1) throw new Error('cast vote tx failed');
@@ -153,35 +161,36 @@ async function doVote(): Promise<void> {
 }
 
 onMounted(async () => {
-  const [active, params, topChoice] = await dao.value.proposals(proposalId);
+  const {active, params, topChoice} = await dao.value.PROPOSALS(proposalId);
   const proposal = { id: proposalId, active, topChoice, params };
-  const ipfsParamsRes = await fetch(`https://w3s.link/ipfs/${params.ipfsHash}`);
+  const ipfsParamsRes = await PinataApi.fetch(params.ipfsHash);
   const ipfsParams: Poll = await ipfsParamsRes.json();
 
-  poll.value = { proposal, ipfsParams } as unknown as DAOv1.ProposalWithIdStructOutput & {
+  poll.value = { proposal, ipfsParams } as unknown as PollManager.ProposalWithIdStructOutput & {
     ipfsParams: Poll;
   };
   if (!proposal.active) {
     voteCounts.value = await dao.value.getVoteCounts(proposalId);
     selectedChoice.value = winningChoice.value = proposal.topChoice;
     if (proposal.params.publishVotes) {
-      votes.value = await dao.value.getVotes(proposalId);
+      votes.value = await dao.value.getVotes(proposalId, 0, 10);
     }
   }
 
-  const acl = await usePollACLv1();
+  const acl = IPollACL__factory.connect(params.acl, eth.provider);
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.ZeroAddress;
 
+  // TODO: replace with multicall?
   await Promise.all([
-    acl.value
+    acl
       .canManagePoll(await dao.value.getAddress(), proposalId, userAddress)
       .then((status) => {
         canClosePoll.value = status;
       }),
-    acl.value
-      .canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress)
+    acl
+      .canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]))
       .then((status) => {
-        canAclVote.value = status;
+        canAclVote.value = status != 0n;
       }),
   ]);
 });
@@ -232,8 +241,8 @@ onMounted(async () => {
           class="capitalize text-white text-2xl font-bold mt-10"
         >
           <label class="inline-block mb-5">Individual votes</label>
-          <p v-for="(addr, i) in votes[0]" :key="i" class="text-white text-base" variant="addr">
-            {{ addr }}: {{ poll.ipfsParams.choices[Number(votes[1][i])] }}
+          <p v-for="(addr, i) in votes.out_voters[0]" :key="i" class="text-white text-base" variant="addr">
+            {{ addr }}: {{ poll.ipfsParams.choices[Number(votes.out_choices[i])] }}
           </p>
         </div>
 

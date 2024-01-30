@@ -3,52 +3,64 @@ import { ethers } from 'ethers';
 import { onMounted, ref, shallowRef } from 'vue';
 
 import type { Poll } from '../types';
-import type { DAOv1 } from '../contracts';
-import { useDAOv1, usePollACLv1 } from '../contracts';
+import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
+import { usePollManager, usePollManagerACL } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppPoll from '@/components/AppPoll.vue';
 import PollLoader from '@/components/PollLoader.vue';
+import { PinataApi } from '@/utils/pinata-api';
 
 const eth = useEthereumStore();
-const dao = useDAOv1();
+const dao = usePollManager();
 
-type FullProposal = DAOv1.ProposalWithIdStructOutput & { params: Poll };
+const FETCH_BATCH_SIZE = 100;
+
+type FullProposal = PollManager.ProposalWithIdStructOutput & { params: Poll };
 const activePolls = shallowRef<Record<string, FullProposal>>({});
 const pastPolls = shallowRef<Record<string, FullProposal>>({});
 const canCreatePoll = ref<Boolean>(false);
 const isLoadingActive = ref<Boolean>(true);
 const isLoadingPast = ref<Boolean>(true);
 
+interface FetchProposalResult {
+  out_count: bigint;
+  out_proposals: PollManager.ProposalWithIdStructOutput[];
+}
+
 async function fetchProposals(
-  fetcher: (offset: number, batchSize: number) => Promise<DAOv1.ProposalWithIdStructOutput[]>,
+  fetcher: (offset: number, batchSize: number) => Promise<FetchProposalResult>,
 ): Promise<Record<string, FullProposal>> {
   const proposalsMap: Record<string, FullProposal> = {};
 
-  const batchSize = 100;
-  for (let offset = 0; ; offset += batchSize) {
-    let proposals: DAOv1.ProposalWithIdStructOutput[] = [];
+  for (let offset = 0; ; offset += FETCH_BATCH_SIZE) {
+    let result: FetchProposalResult;
     try {
-      proposals = await fetcher(offset, batchSize);
-    } catch (e: any) {
+      result = await fetcher(offset, FETCH_BATCH_SIZE);
+    }
+    catch (e: any) {
       console.error('failed to fetch proposals', e);
       break;
     }
     await Promise.all(
-      proposals.map(({ id, proposal }) => {
+      result.out_proposals.map(async ({ id, proposal }) => {
         const ipfsHash = proposal.params.ipfsHash;
         id = id.slice(2);
 
-        return fetch(`https://w3s.link/ipfs/${ipfsHash}`)
-          .then((res) => res.json())
-          .then((params) => {
-            proposalsMap[id] = { id, params, proposal } as FullProposal;
-          })
-          .catch((e) => console.error('failed to fetch proposal params from IPFS', e));
+        try {
+          const res = await PinataApi.fetch(ipfsHash);
+          const params = await res.json();
+          proposalsMap[id] = { id, params, proposal } as FullProposal;
+        }
+        catch (e) {
+          return console.error('failed to fetch proposal params from IPFS', e);
+        }
       }),
     );
 
-    if (proposals.length < batchSize) return proposalsMap;
+    if (result.out_proposals.length < FETCH_BATCH_SIZE) {
+      return proposalsMap;
+    }
   }
 
   return proposalsMap;
@@ -56,7 +68,7 @@ async function fetchProposals(
 
 onMounted(async () => {
 
-  const acl = await usePollACLv1();
+  const acl = await usePollManagerACL();
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.ZeroAddress;
   canCreatePoll.value = await acl.value.canCreatePoll(await dao.value.getAddress(), userAddress);
 
@@ -64,9 +76,7 @@ onMounted(async () => {
 
   await Promise.all([
     fetchProposals((offset, batchSize) =>
-      dao.value.getActiveProposals(offset, batchSize, {
-        blockTag,
-      }),
+      dao.value.getActiveProposals(offset, batchSize),
     ).then((proposalsMap) => {
       activePolls.value = { ...proposalsMap };
       isLoadingActive.value = false;

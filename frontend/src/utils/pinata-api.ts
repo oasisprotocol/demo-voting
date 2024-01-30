@@ -2,6 +2,7 @@ import type { Poll } from '../types';
 
 export abstract class PinataApi {
   static JWT_TOKEN = import.meta.env.VITE_PINATA_JWT;
+  static GATEWAY_URL = import.meta.env.VITE_IPFS_GATEWAY;
 
   static pinBody = async (poll: Poll) => {
     const body = JSON.stringify({
@@ -23,5 +24,12 @@ export abstract class PinataApi {
       status: 201,
       headers: { 'content-type': 'application/json' },
     });
+  };
+
+  static async fetch (ipfsHash:string) {
+    const gw = PinataApi.GATEWAY_URL ?? 'https://w3s.link/ipfs';
+    const url = `${gw}/${ipfsHash}`;
+    console.log('IPFS Retrieve', url);
+    return await fetch(url);
   };
 }
