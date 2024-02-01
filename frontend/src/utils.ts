@@ -2,32 +2,13 @@ import type { Poll } from './types';
 
 import { AEAD, NonceSize, KeySize, TagSize } from '@oasisprotocol/deoxysii';
 import { sha256 } from '@noble/hashes/sha256';
+import { LRUCache } from 'typescript-lru-cache';
 
-export abstract class PinataApi {
+export abstract class Pinata {
   static JWT_TOKEN = import.meta.env.VITE_PINATA_JWT;
   static GATEWAY_URL = import.meta.env.VITE_IPFS_GATEWAY;
 
-  static pinBody = async (poll: Poll) => {
-    const body = JSON.stringify({
-      pinataContent: poll,
-    });
-
-    const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${PinataApi.JWT_TOKEN}`,
-      },
-      body,
-    });
-    const resBody = await res.json();
-    if (res.status !== 200) throw new Error('failed to pin');
-    const resp = { ipfsHash: resBody.IpfsHash };
-    return new Response(JSON.stringify(resp), {
-      status: 201,
-      headers: { 'content-type': 'application/json' },
-    });
-  };
+  static #cache = new LRUCache<string,Uint8Array>();
 
   static async pinData (data:Uint8Array) {
     const form = new FormData();
@@ -36,10 +17,7 @@ export abstract class PinataApi {
     const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
       method: 'POST',
       headers: {
-        //'accept': 'application/json',
-        //'content-type': `multipart/form-data; boundary=${boundaryValue}`,
-        //'content-type': 'multipart/form-data',
-        authorization: `Bearer ${PinataApi.JWT_TOKEN}`,
+        authorization: `Bearer ${Pinata.JWT_TOKEN}`,
       },
       body: form,
     });
@@ -48,18 +26,20 @@ export abstract class PinataApi {
       console.log(res, resBody);
       throw new Error('pinData: failed to pin');
     }
-    const resp = { ipfsHash: resBody.IpfsHash };
-    return new Response(JSON.stringify(resp), {
-      status: 201,
-      headers: { 'content-type': 'application/json' },
-    });
+    Pinata.#cache.set(resBody.IpfsHash, data);
+    return resBody.IpfsHash as string;
   }
 
-  static async fetch (ipfsHash:string) {
-    const gw = PinataApi.GATEWAY_URL ?? 'https://w3s.link/ipfs';
+  static async fetchData (ipfsHash:string) {
+    if( Pinata.#cache.has(ipfsHash) ) {
+      return Pinata.#cache.get(ipfsHash)!;
+    }
+    const gw = Pinata.GATEWAY_URL ?? 'https://w3s.link/ipfs';
     const url = `${gw}/${ipfsHash}`;
-    console.log('IPFS Retrieve', url);
-    return await fetch(url);
+    const resp = await fetch(url);
+    const data = new Uint8Array(await resp.arrayBuffer())
+    Pinata.#cache.set(ipfsHash, data);
+    return data;
   };
 }
 

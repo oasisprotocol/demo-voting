@@ -8,7 +8,6 @@ import { IPollACL__factory } from '@oasisprotocol/demo-voting-contracts';
 import {
   usePollManager,
   useGaslessVoting,
-  usePollACL,
   usePollManagerWithSigner
 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
@@ -19,7 +18,7 @@ import UncheckedIcon from '@/components/UncheckedIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
-import { PinataApi, decryptJSON } from '@/utils';
+import { Pinata, decryptJSON } from '@/utils';
 
 const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
@@ -163,8 +162,7 @@ async function doVote(): Promise<void> {
 onMounted(async () => {
   const {active, params, topChoice} = await dao.value.PROPOSALS(proposalId);
   const proposal = { id: proposalId, active, topChoice, params };
-  const ipfsParamsRes = await PinataApi.fetch(params.ipfsHash);
-  const ipfsData = new Uint8Array(await ipfsParamsRes.arrayBuffer());
+  const ipfsData = await Pinata.fetchData(params.ipfsHash);
   const ipfsParams: Poll = decryptJSON(getBytes(proposal.params.ipfsSecret), ipfsData);
   console.log('Retrieved poll JSON', ipfsParams);
   poll.value = { proposal, ipfsParams } as unknown as PollManager.ProposalWithIdStructOutput & {

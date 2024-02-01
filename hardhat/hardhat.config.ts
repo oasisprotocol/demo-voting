@@ -1,7 +1,7 @@
 import '@oasisprotocol/sapphire-hardhat';
 import "@nomicfoundation/hardhat-ethers"
 import 'hardhat-tracer';
-import { existsSync, promises as fs } from 'fs';
+import { promises as fs } from 'fs';
 import path from 'path';
 
 import canonicalize from 'canonicalize';
@@ -9,6 +9,8 @@ import { TASK_COMPILE } from 'hardhat/builtin-tasks/task-names';
 import { HardhatUserConfig, task } from 'hardhat/config';
 
 import '@typechain/hardhat';
+
+import './tasks/deploy';
 
 const TASK_EXPORT_ABIS = 'export-abis';
 
@@ -37,87 +39,6 @@ task(TASK_EXPORT_ABIS, async (_args, hre) => {
     }),
   );
 }).setDescription('Saves ABI and bytecode to the "abis" directory');
-
-async function tee(filename?:string, line?:string) {
-  if( line !== undefined ) {
-    console.log(line);
-    if( filename ) {
-      await fs.appendFile(filename, line + "\n");
-    }
-  }
-}
-
-interface DeployArgs {
-  viteenv: string | undefined;
-}
-
-// Default DAO deployment, no permissions.
-task('deploy')
-  .addParam('viteenv', 'Output contract addresses to environment file', '')
-  .setAction(async (args:DeployArgs, hre) => {
-    await hre.run('compile', {quiet:true});
-
-    if( args.viteenv ) {
-      console.log(`# Saving environment to ${args.viteenv}`);
-      if( existsSync(args.viteenv) )
-      {
-        await fs.unlink(args.viteenv);
-      }
-    }
-
-    // Export RPC info etc. from current hardhat config
-    const currentNetwork = Object.values(hre.config.networks).find((x) => x.chainId === hre.network.config.chainId);
-    const currentNetworkUrl = (currentNetwork as any).url;
-    tee(args.viteenv, `VITE_NETWORK=${hre.network.config.chainId}`);
-    if( ! currentNetworkUrl ) {
-      tee(args.viteenv, 'VITE_WEB3_GATEWAY=http://localhost:8545');
-    }
-    else {
-      tee(args.viteenv, `VITE_WEB3_GATEWAY=${currentNetworkUrl}`);
-    }
-
-    const factory_AllowAllACL = await hre.ethers.getContractFactory('AllowAllACL');
-    const contract_AllowAllACL = await factory_AllowAllACL.deploy();
-    await tee(args.viteenv, '');
-    await tee(args.viteenv, `# AllowAllACL tx ${contract_AllowAllACL.deploymentTransaction()?.hash}`);
-    await contract_AllowAllACL.waitForDeployment();
-    await tee(args.viteenv, `VITE_CONTRACT_ACL_ALLOWALL=${await contract_AllowAllACL.getAddress()}`);
-
-    const factory_VoterAllowListACL = await hre.ethers.getContractFactory('VoterAllowListACL');
-    const contract_VoterAllowListACL = await factory_VoterAllowListACL.deploy();
-    await tee(args.viteenv, '');
-    await tee(args.viteenv, `# VoterAllowListACL tx ${contract_VoterAllowListACL.deploymentTransaction()?.hash}`);
-    await contract_VoterAllowListACL.waitForDeployment();
-    await tee(args.viteenv, `VITE_CONTRACT_ACL_VOTERALLOWLIST=${await contract_VoterAllowListACL.getAddress()}`);
-
-    const factory_TokenHolderACL = await hre.ethers.getContractFactory('TokenHolderACL');
-    const contract_TokenHolderACL = await factory_TokenHolderACL.deploy();
-    await tee(args.viteenv, '');
-    await tee(args.viteenv, `# TokenHolderACL tx ${contract_TokenHolderACL.deploymentTransaction()?.hash}`);
-    await contract_TokenHolderACL.waitForDeployment();
-    await tee(args.viteenv, `VITE_CONTRACT_ACL_TOKENHOLDER=${await contract_TokenHolderACL.getAddress()}`);
-
-    const factory_GaslessVoting = await hre.ethers.getContractFactory('GaslessVoting');
-    const contract_GaslessVoting = await factory_GaslessVoting.deploy();
-    await tee(args.viteenv, '');
-    await tee(args.viteenv, `# GaslessVoting tx ${contract_GaslessVoting.deploymentTransaction()?.hash}`);
-    await contract_GaslessVoting.waitForDeployment();
-    await tee(args.viteenv, `VITE_CONTRACT_GASLESSVOTING=${await contract_GaslessVoting.getAddress()}`);
-
-    const pollmanager_acl = await contract_AllowAllACL.getAddress();
-    const factory_PollManager = await hre.ethers.getContractFactory('PollManager');
-    const contract_PollManager = await factory_PollManager.deploy(
-      pollmanager_acl,
-      await contract_GaslessVoting.getAddress()
-    );
-    await tee(args.viteenv, '');
-    await tee(args.viteenv, `# PollManager tx ${contract_PollManager.deploymentTransaction()?.hash}`);
-    await contract_PollManager.waitForDeployment();
-    await tee(args.viteenv, `VITE_CONTRACT_POLLMANAGER=${await contract_PollManager.getAddress()}`);
-
-    await tee(args.viteenv, '# IPollManagerACL used by PollManager');
-    await tee(args.viteenv, `VITE_CONTRACT_POLLMANAGER_ACL=${pollmanager_acl}`)
-});
 
 const TEST_HDWALLET = {
   mnemonic: "test test test test test test test test test test test junk",
