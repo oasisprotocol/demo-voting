@@ -17,7 +17,7 @@ process.env.VITE_PACKAGE_VERSION = package_json['version'];
 process.env.VITE_PACKAGE_NAME = package_json['name'];
 process.env.VITE_GIT_COMMIT_DATE = commitDate;
 process.env.VITE_GIT_COMMIT_HASH = commitHash;
-process.env.VITE_GIT_COMMIT_SHORT_HASH = commitHash.slice(0, 16);
+process.env.VITE_GIT_COMMIT_SHORT_HASH = commitHash.slice(0, 8);
 
 // https://vitejs.dev/config/
 export default defineConfig({

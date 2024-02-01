@@ -23,13 +23,20 @@ contract VoterAllowListACL is IPollACL
         return interfaceId == type(IPollACL).interfaceId;
     }
 
+    function id(address in_dao, bytes32 in_proposalId)
+        internal pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(in_dao, in_proposalId));
+    }
+
     /// Initialize ACL for the poll with the list of voters
     function onPollCreated(bytes32 in_proposalId, address in_creator, bytes calldata in_data)
         external
     {
         address[] memory voters = abi.decode(in_data, (address[]));
 
-        bytes32 pid = keccak256(abi.encode(msg.sender, in_proposalId));
+        bytes32 pid = id(msg.sender, in_proposalId);
 
         eligibleVotersList[pid] = voters;
 
@@ -45,7 +52,7 @@ contract VoterAllowListACL is IPollACL
     function onPollClosed(bytes32 in_proposalId)
         external
     {
-        bytes32 pid = keccak256(abi.encode(msg.sender, in_proposalId));
+        bytes32 pid = id(msg.sender, in_proposalId);
 
         address[] memory voters = eligibleVotersList[pid];
 
@@ -62,7 +69,7 @@ contract VoterAllowListACL is IPollACL
         external view
         returns(bool)
     {
-        bytes32 pid = keccak256(abi.encode(in_dao, in_proposalId));
+        bytes32 pid = id(in_dao, in_proposalId);
 
         return pollManager[pid] == in_user;
     }
@@ -72,7 +79,7 @@ contract VoterAllowListACL is IPollACL
         external view
         returns(uint)
     {
-        bytes32 pid = keccak256(abi.encode(in_dao, in_proposalId));
+        bytes32 pid = id(in_dao, in_proposalId);
 
         return eligibleVoters[pid][in_user] == true ? 1 : 0;
     }

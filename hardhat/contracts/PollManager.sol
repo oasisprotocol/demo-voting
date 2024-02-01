@@ -13,6 +13,8 @@ import { IGaslessVoter } from "../interfaces/IGaslessVoter.sol";
 contract PollManager is IERC165, IPollManager {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
+    uint256 public constant MAX_CHOICES = 8;
+
     // ------------------------------------------------------------------------
     // ERRORS
 
@@ -73,8 +75,6 @@ contract PollManager is IERC165, IPollManager {
         uint weight;
         uint8 choice;
     }
-
-    uint256 public constant MAX_CHOICES = 32;
 
     struct Ballot {
         /// voter -> choice id

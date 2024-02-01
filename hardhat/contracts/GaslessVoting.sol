@@ -41,6 +41,8 @@ contract GaslessVoting is IERC165, IGaslessVoter
         uint n;
     }
 
+    // ------------------------------------------------------------------------
+
     mapping(bytes32 => PollSettings) private s_polls;
 
     /// Lookup a poll and keypair from the address
@@ -48,11 +50,15 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
     bytes32 immutable private encryptionSecret;
 
+    // ------------------------------------------------------------------------
+
     // EIP-712 parameters
     bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     string public constant VOTINGREQUEST_TYPE = "VotingRequest(address voter,address dao,bytes32 proposalId,uint256 choiceId)";
     bytes32 public constant VOTINGREQUEST_TYPEHASH = keccak256(bytes(VOTINGREQUEST_TYPE));
     bytes32 public immutable DOMAIN_SEPARATOR;
+
+    // ------------------------------------------------------------------------
 
     constructor ()
     {
@@ -83,6 +89,8 @@ contract GaslessVoting is IERC165, IGaslessVoter
         return keccak256(abi.encodePacked(in_dao, in_proposalId));
     }
 
+    // ------------------------------------------------------------------------
+
     function listAddresses(address in_dao, bytes32 in_proposalId)
         external view
         returns (address[] memory out_addrs)
@@ -97,13 +105,15 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         if( n > 0 ) {
             out_addrs = new address[](n);
-
-            for( uint i = 0; i < n; i++ )
-            {
+            for( uint i = 0; i < n; i++ ) {
                 out_addrs[i] = keypairs[i].addr;
             }
         }
     }
+
+    // ------------------------------------------------------------------------
+
+    error onPollCreated_409();
 
     function onPollCreated(bytes32 in_proposalId, address in_creator)
         external payable
@@ -114,16 +124,21 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         PollSettings storage poll = s_polls[gvid];
 
-        require( poll.dao == IPollManager(address(0)), "409" );  // CONFLICT
+        if( poll.dao != IPollManager(address(0)) ) {
+            revert onPollCreated_409(); // Poll already exists
+        }
 
         poll.owner = in_creator;
         poll.dao = IPollManager(msg.sender);
 
-        if( msg.value > 0 )
-        {
+        if( msg.value > 0 ) {
             internal_addKeypair(gvid);
         }
     }
+
+    // ------------------------------------------------------------------------
+
+    error onPollClosed_404();
 
     function onPollClosed(bytes32 in_proposalId)
         external
@@ -133,10 +148,14 @@ contract GaslessVoting is IERC165, IGaslessVoter
         PollSettings storage poll = s_polls[gvid];
 
         // Poll must exist
-        require( poll.dao != IPollManager(address(0)) );
+        if( poll.dao == IPollManager(address(0)) ) {
+            revert onPollClosed_404();
+        }
 
         poll.closed = true;
     }
+
+    // ------------------------------------------------------------------------
 
     /**
      * Add a random keypair to the list
@@ -161,6 +180,10 @@ contract GaslessVoting is IERC165, IGaslessVoter
         return signerAddr;
     }
 
+    // ------------------------------------------------------------------------
+
+    error internal_randomKeypair_404();
+
     /**
      * Select a random keypair
      */
@@ -169,8 +192,9 @@ contract GaslessVoting is IERC165, IGaslessVoter
         returns (EthereumKeypair storage)
     {
         EthereumKeypair[] storage keypairs = s_polls[in_gvid].keypairs;
-
-        require( keypairs.length > 0, "no keypairs!" );
+        if( keypairs.length == 0 ) {
+            revert internal_randomKeypair_404();
+        }
 
         uint16 x = uint16(bytes2(Sapphire.randomBytes(2, "")));
 
@@ -180,6 +204,10 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         return keypairs[x % keypairs.length];
     }
+
+    // ------------------------------------------------------------------------
+
+    error internal_keypairByAddress_404();
 
     /**
      * Select a keypair given its address
@@ -195,14 +223,21 @@ contract GaslessVoting is IERC165, IGaslessVoter
     {
         KeypairIndex memory idx = s_addrToKeypair[addr];
 
-        require( idx.gvid != 0 );
+        // Keypair must exist for address
+        if( idx.gvid == 0 ) {
+            revert internal_keypairByAddress_404();
+        }
 
         out_poll = s_polls[idx.gvid];
 
         out_keypair = out_poll.keypairs[idx.n];
     }
 
+    // ------------------------------------------------------------------------
+
     event KeypairCreated(address addr);
+
+    error addKeypair_403();
 
     /**
      * Create a random keypair, sending some gas to it
@@ -212,17 +247,25 @@ contract GaslessVoting is IERC165, IGaslessVoter
     {
         bytes32 gvid = internal_gvid(in_dao, in_proposalId);
 
-        require( s_polls[gvid].owner == msg.sender, "403" );
+        // poll must be owned by sender
+        if( s_polls[gvid].owner != msg.sender ) {
+            revert addKeypair_403();
+        }
 
         address addr = internal_addKeypair(gvid);
 
         emit KeypairCreated(addr);
 
-        if( msg.value > 0 )
-        {
+        if( msg.value > 0 ) {
             payable(addr).transfer(msg.value);
         }
     }
+
+    // ------------------------------------------------------------------------
+
+    error makeVoteTransaction_404();
+    error makeVoteTransaction_401();
+    error makeVoteTransaction_403();
 
     /**
      * Validate a users voting request, then give them a signed transaction to commit the vote
@@ -249,11 +292,15 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         IPollManager dao = s_polls[gvid].dao;
 
-        require( dao != IPollManager(address(0)), "404" );
+        if( dao == IPollManager(address(0)) ) {
+            revert makeVoteTransaction_404();
+        }
 
         // User must be able to vote on the poll
         // so we don't waste gas submitting invalid transactions
-        require( 0 != dao.canVoteOnPoll(in_request.proposalId, in_request.voter, in_data), "401" );
+        if( 0 == dao.canVoteOnPoll(in_request.proposalId, in_request.voter, in_data) ) {
+            revert makeVoteTransaction_401();
+        }
 
         // Validate EIP-712 signed voting request
         bytes32 requestDigest = keccak256(abi.encodePacked(
@@ -267,7 +314,9 @@ contract GaslessVoting is IERC165, IGaslessVoter
                 in_request.choiceId
             ))
         ));
-        require( in_request.voter == ecrecover(requestDigest, uint8(in_rsv.v), in_rsv.r, in_rsv.s), "403" );
+        if( in_request.voter != ecrecover(requestDigest, uint8(in_rsv.v), in_rsv.r, in_rsv.s) ) {
+            revert makeVoteTransaction_403();
+        }
 
         // Encrypt request to authenticate it when we're invoked again
         bytes32 ciphertextNonce = keccak256(abi.encodePacked(encryptionSecret, requestDigest));
@@ -305,14 +354,20 @@ contract GaslessVoting is IERC165, IGaslessVoter
             }));
     }
 
+    // ------------------------------------------------------------------------
+
+    error proxy_403();
+    error proxy_500();
+
     function proxy(bytes32 ciphertextNonce, bytes memory ciphertext)
         external payable
     {
         EthereumKeypair storage kp;
 
         (,kp) = internal_keypairByAddress(msg.sender);
-
-        require( kp.gvid != 0, "403" ); // Keypair must belong to us
+        if( kp.gvid == 0 ) {    // Keypair must exist and belong to the sender
+            revert proxy_403();
+        }
 
         bytes memory plaintext = Sapphire.decrypt(encryptionSecret, ciphertextNonce, ciphertext, "");
 
@@ -320,10 +375,19 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         (bool success,) = addr.call{value: msg.value}(subcall_data);
 
-        require( success, "500" );
+        if( false == success ) {
+            revert proxy_500();
+        }
 
         kp.nonce += 1;
     }
+
+    // ------------------------------------------------------------------------
+
+    error withdraw_404();
+    error withdraw_401();
+    error withdraw_403();
+    error withdraw_412();
 
     function withdraw(
         address in_dao,
@@ -339,15 +403,19 @@ contract GaslessVoting is IERC165, IGaslessVoter
     {
         bytes32 gvid = internal_gvid(in_dao, in_proposalId);
 
+        // poll must exist
         address owner = s_polls[gvid].owner;
-
-        require( owner != address(0), "404" );
+        if( owner == address(0) ) {
+            revert withdraw_404();
+        }
 
         bytes32 inner_digest = keccak256(abi.encode(address(this), in_dao, in_proposalId));
-
         bytes32 digest = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", inner_digest));
 
-        require( owner == ecrecover(digest, uint8(rsv.v), rsv.r, rsv.s), "401" );
+        // Signature must be from owner
+        if( owner != ecrecover(digest, uint8(rsv.v), rsv.r, rsv.s) ) {
+            revert withdraw_401();
+        }
 
         PollSettings storage poll;
 
@@ -355,9 +423,14 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         (poll, kp) = internal_keypairByAddress(in_keypairAddress);
 
-        require( poll.owner == owner, "403" );
+        // signer must be poll owner
+        if( poll.owner != owner) {
+            revert withdraw_403();
+        }
 
-        require( poll.closed == true, "412" ); // Creator can only withdraw after closing poll
+        if( poll.closed == false ) {
+            revert withdraw_412();  // Creator can only withdraw after closing poll
+        }
 
         return EIP155Signer.sign(kp.addr, kp.secret, EIP155Signer.EthTx({
             nonce: in_nonce,

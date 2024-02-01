@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
+
 pragma solidity ^0.8.0;
 
 import { IERC165 } from "@openzeppelin/contracts/interfaces/IERC165.sol";

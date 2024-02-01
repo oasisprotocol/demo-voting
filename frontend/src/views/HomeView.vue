@@ -9,7 +9,7 @@ import { useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';
 import AppPoll from '@/components/AppPoll.vue';
 import PollLoader from '@/components/PollLoader.vue';
-import { PinataApi, decryptJSON } from '@/utils';
+import { Pinata, decryptJSON } from '@/utils';
 
 const eth = useEthereumStore();
 const dao = usePollManager();
@@ -48,9 +48,7 @@ async function fetchProposals(
         id = id.slice(2);
 
         try {
-          const res = await PinataApi.fetch(ipfsHash);
-          const params = decryptJSON(getBytes(proposal.params.ipfsSecret), new Uint8Array(await res.arrayBuffer()))
-          //const params = await res.json();
+          const params = decryptJSON(getBytes(proposal.params.ipfsSecret), await Pinata.fetchData(ipfsHash))
           proposalsMap[id] = { id, params, proposal } as FullProposal;
         }
         catch (e) {
@@ -152,7 +150,7 @@ onMounted(async () => {
       v-if="!isLoadingPast && Object.keys(pastPolls).length <= 0"
       class="text-white text-center font-normal"
     >
-      You currently have no past polls
+      There are no past polls
     </p>
   </section>
 </template>
