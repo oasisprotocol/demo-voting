@@ -5,5 +5,6 @@ export type Poll = {
     choices: string[];
     options: {
       publishVotes: boolean;
+      closeTimestamp: number;
     };
 };
