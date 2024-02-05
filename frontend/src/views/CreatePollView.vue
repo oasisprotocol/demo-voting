@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, type ComputedRef, toValue } from 'vue';
 
 import { usePollManager, usePollManagerWithSigner } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
@@ -23,6 +23,47 @@ const choices = ref<Array<{ key: number; value: string }>>(
     value: '',
   })),
 );
+
+// Optional expiration date must be in future & must parse correctly
+const hasExpiration = ref(false);
+const expirationTimeString = ref('');
+
+const expirationTime = computed<Date|undefined>(() => {
+  const ets = toValue(expirationTimeString);
+  if( ! ets ) {
+    return undefined;
+  }
+  const x = new Date(ets)
+  return !isNaN(x.valueOf()) ? x : undefined;
+});
+
+const expirationIsInPast = computed<boolean|undefined>(()=>{
+  if( hasExpiration.value ) {
+    if( expirationTime.value !== undefined ) {
+      if( expirationTime.value < new Date() ) {
+        return true;
+      }
+      return false;
+    }
+  }
+  return undefined;
+});
+
+const isDateValid = computed(() => {
+  if( ! toValue(hasExpiration) ) {
+    const et = toValue(expirationTime);
+    if( et !== undefined ) {
+      if( et > new Date() ) {
+        return true;
+      }
+    }
+    return false;
+  }
+  return true;
+});
+
+const canCreatePoll = computed(() => isLoading.value == false && isDateValid.value);
+
 const publishVotes = ref(false);
 const isLoading = ref(false);
 const proposalId = ref('');
@@ -62,6 +103,7 @@ async function doCreatePoll(): Promise<string> {
     choices: choices.value.map((c) => c.value),
     options: {
       publishVotes: publishVotes.value,
+      closeTimestamp: toValue(isDateValid) ? (toValue(expirationTime)!.valueOf() / 1000) : 0,
     },
   };
   const {key,cipherbytes} = encryptJSON(poll);
@@ -74,7 +116,7 @@ async function doCreatePoll(): Promise<string> {
     ipfsSecret: key,
     numChoices: choices.value.length,
     publishVotes: poll.options.publishVotes,
-    closeTimestamp: 0,
+    closeTimestamp: poll.options.closeTimestamp,
     acl: import.meta.env.VITE_CONTRACT_ACL_ALLOWALL
   };
 
@@ -187,8 +229,8 @@ async function doCreatePoll(): Promise<string> {
         </div>
 
         <div class="form-group-extended">
-          <label class="inline-block mb-5">Additional options</label>
-          <div class="flex pl-4">
+          <!-- Individual Votes -->
+          <div class="flex mb-5 pl-5 pt-5">
             <input
               id="publish-votes"
               class="w-5 h-5 border-2 border-gray-500"
@@ -199,11 +241,39 @@ async function doCreatePoll(): Promise<string> {
               Publish individual votes after voting has ended.
             </label>
           </div>
+          <!-- / Individual Votes -->
+
+          <!-- Expiration -->
+          <div class="flex mb-5 pl-5">
+            <input
+              id="has-expiration"
+              class="w-5 h-5 border-2 border-gray-500"
+              type="checkbox"
+              v-model="hasExpiration"
+            />
+            <label class="ml-3 text-base text-gray-900" for="has-expiration">
+              <div v-if="hasExpiration">
+                <input type="datetime-local" v-model="expirationTimeString" />
+
+                <div v-if="expirationTime" class="mt-3 text-gray-500">
+                  {{expirationTime}}
+
+                  <div v-if="expirationIsInPast" class="mt-2">
+                    <b>Poll close date must be in the future!</b>
+                  </div>
+                </div>
+              </div>
+              <div v-else>
+                Set poll closing date & time
+              </div>
+            </label>
+            </div>
         </div>
+        <!-- / Expiration -->
 
         <div class="flex justify-center">
           <div v-if="eth.isSapphire">
-            <AppButton type="submit" variant="primary" :disabled="isLoading">
+            <AppButton type="submit" variant="primary" :disabled="!canCreatePoll">
               <span v-if="isLoading">Creating…</span>
               <span v-else>
                 Create Poll
