@@ -2,7 +2,7 @@ import detectEthereumProvider from '@metamask/detect-provider';
 import { wrap as sapphireWrap, NETWORKS as SAPPHIRE_NETWORKS } from '@oasisprotocol/sapphire-paratime';
 import { toQuantity, JsonRpcProvider, JsonRpcApiProvider, JsonRpcSigner, BrowserProvider } from 'ethers';
 import { defineStore } from 'pinia';
-import { markRaw, ref, shallowRef } from 'vue';
+import { computed, markRaw, ref, shallowRef, toValue } from 'vue';
 import type { EIP1193Provider } from './eip1193';
 
 export enum Network {
@@ -75,6 +75,7 @@ export const useEthereumStore = defineStore('ethereum', () => {
   const address = ref<string | undefined>();
   const status = ref(ConnectionStatus.Unknown);
   const isSapphire = ref<boolean>(false);
+  const isHomeChain = computed<boolean>(() => toValue(network) == Network.FromConfig );
 
   async function _changeAccounts(accounts:string[])
   {
@@ -264,7 +265,8 @@ export const useEthereumStore = defineStore('ethereum', () => {
     connect,
     addNetwork,
     switchNetwork,
-    isSapphire
+    isSapphire,
+    isHomeChain
   };
 
 });

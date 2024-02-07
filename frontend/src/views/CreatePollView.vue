@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, type ComputedRef, toValue } from 'vue';
+import { ref, computed, toValue } from 'vue';
 
-import { usePollManager, usePollManagerWithSigner } from '../contracts';
-import { useEthereumStore } from '../stores/ethereum';
-import type { Poll } from '../types';
 import AppButton from '@/components/AppButton.vue';
 import RemoveIcon from '@/components/RemoveIcon.vue';
 import AddIcon from '@/components/AddIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import { retry, Pinata, encryptJSON } from '@/utils';
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
+import { getAddress, parseEther, JsonRpcProvider } from 'ethers';
+
+import { usePollManager, usePollManagerWithSigner } from '../contracts';
+import { useEthereumStore } from '../stores/ethereum';
+import type { Poll } from '../types';
+import { xchain_chains, xchainRPC } from "../xchain";
 
 const eth = useEthereumStore();
 const dao = usePollManager();
@@ -23,6 +26,90 @@ const choices = ref<Array<{ key: number; value: string }>>(
     value: '',
   })),
 );
+
+// Subsidy management
+const hasSubsidy = ref(false);
+const subsidyAmountStr = ref('');
+const subsidyAmount = ref<bigint|undefined>(undefined);
+const isSubsidyValid = computed(() => {
+  if( toValue(hasSubsidy) ) {
+    const amountStr = subsidyAmountStr.value;
+    if( ! amountStr ) {
+      subsidyAmount.value = undefined;
+      return false;
+    }
+    try {
+      subsidyAmount.value = parseEther(amountStr);
+      return true;
+    }
+    catch(e:any) {
+      subsidyAmount.value = undefined;
+      return false;
+    }
+  }
+  subsidyAmount.value = undefined;
+  return true;
+});
+
+// Poll ACL management
+const acl_allowAll = import.meta.env.VITE_CONTRACT_ACL_ALLOWALL;
+const acl_tokenHolder = import.meta.env.VITE_CONTRACT_ACL_TOKENHOLDER;
+const acl_allowList = import.meta.env.VITE_CONTRACT_ACL_VOTERALLOWLIST;
+const acl_xchain = import.meta.env.VITE_CONTRACT_ACL_STORAGEPROOF;
+const chosenPollACL = ref(acl_allowAll);
+
+
+// Allow list ACL stuff
+const acl_allowList_addressesStr = ref('');
+const acl_allowList_addresses = computed(() => {
+  // Split by newlines and commas, trim everything
+  const in_addrs = toValue(acl_allowList_addressesStr)
+                    .split("\n")
+                    .flatMap(x => x.split(","))
+                    .flatMap(x => x.split(" "))
+                    .map(x => x.trim())
+                    .filter(x => x.length > 0);
+  //
+  // Validate all extracted addresses
+  let invalid:Record<string,string> = {};
+  let addrs = [];
+  for( const x of in_addrs ) {
+    try {
+      addrs.push(getAddress(x));
+    }
+    catch(e:any) {
+      if( e.code == 'INVALID_ARGUMENT' ) {
+        invalid[x] = e.shortMessage;
+      }
+    }
+  }
+  return { addrs, invalid };
+});
+
+// Sapphire token holder ACL stuff
+const holder_addr = ref<string>('');
+
+// Cross-Chain DAO ACL stuff
+const xchain_chainId = ref<number>(1);
+const xchain_hash = ref<string>('');
+const xchain_addr = ref<string>('');
+const xchain_rpc = computed<JsonRpcProvider|undefined>(() => {
+  const chainId = toValue(xchain_chainId);
+  if( chainId ) {
+    return xchainRPC(chainId);
+  }
+});
+
+// Retrieve latest block hash from the chain
+async function xchain_refresh() {
+  const rpc = toValue(xchain_rpc);
+  const block = await rpc!.getBlock('latest');
+  if( block && block.hash ) {
+    xchain_hash.value = block.hash;
+    return block.hash;
+  }
+}
+
 
 // Optional expiration date must be in future & must parse correctly
 const hasExpiration = ref(false);
@@ -49,8 +136,9 @@ const expirationIsInPast = computed<boolean|undefined>(()=>{
   return undefined;
 });
 
+/// false if `has expiration` checked but invalid or historic date
 const isDateValid = computed(() => {
-  if( ! toValue(hasExpiration) ) {
+  if( toValue(hasExpiration) ) {
     const et = toValue(expirationTime);
     if( et !== undefined ) {
       if( et > new Date() ) {
@@ -62,7 +150,7 @@ const isDateValid = computed(() => {
   return true;
 });
 
-const canCreatePoll = computed(() => isLoading.value == false && isDateValid.value);
+const canCreatePoll = computed(() => !toValue(isLoading) && toValue(isDateValid) && toValue(isSubsidyValid));
 
 const publishVotes = ref(false);
 const isLoading = ref(false);
@@ -103,7 +191,7 @@ async function doCreatePoll(): Promise<string> {
     choices: choices.value.map((c) => c.value),
     options: {
       publishVotes: publishVotes.value,
-      closeTimestamp: toValue(isDateValid) ? (toValue(expirationTime)!.valueOf() / 1000) : 0,
+      closeTimestamp: toValue(expirationTime) ? (toValue(expirationTime)!.valueOf() / 1000) : 0,
     },
   };
   const {key,cipherbytes} = encryptJSON(poll);
@@ -127,7 +215,14 @@ async function doCreatePoll(): Promise<string> {
   //console.log('doCreatePoll: creating proposal', proposalId);
 
   const daoSigner = usePollManagerWithSigner();
-  const createProposalTx = await daoSigner.create(proposalParams, new Uint8Array([]));
+  const createProposalTx = await daoSigner.create(
+    proposalParams,
+    new Uint8Array([]),
+    {
+      // Provide additional subsidy
+      value: toValue(subsidyAmount) ?? 0n
+    }
+  );
   console.log('doCreatePoll: creating proposal tx', createProposalTx.hash);
 
   const receipt = (await createProposalTx.wait())!;
@@ -267,12 +362,99 @@ async function doCreatePoll(): Promise<string> {
                 Set poll closing date & time
               </div>
             </label>
+          </div><!-- / Expiration -->
+
+          <!-- Subsidy -->
+          <div class="flex mb-5 pl-5">
+            <input
+              id="has-subsidy"
+              class="w-5 h-5 border-2 border-gray-500"
+              type="checkbox"
+              v-model="hasSubsidy"
+            />
+
+            <label class="ml-3 text-base text-gray-900" for="has-subsidy">
+              Subsidise votes <small>(let people submit votes without paying gas)</small>
+
+              <span v-if="hasSubsidy">
+                <input v-model="subsidyAmountStr" type="text" /> ROSE
+              </span>
+            </label>
+          </div><!-- / Subsidy -->
+
+          <!-- ACL -->
+          <div class="flex mb-5 pl-5">
+            <label for="poll-acl" class="mr-3 text-base text-gray-900 p-3">
+              ACL:
+            </label>
+            <select id="poll-acl" class="p-3" v-model="chosenPollACL">
+              <option :value="acl_allowAll">Allow All</option>
+              <option :value="acl_tokenHolder">Holds Token on Sapphire</option>
+              <option :value="acl_allowList">Address Whitelist</option>
+              <option :value="acl_xchain">Cross-Chain DAO</option>
+            </select>
+          </div><!-- / ACL -->
+
+          <div v-if="toValue(chosenPollACL) == acl_tokenHolder">
+            <div class="mb-5 pl-5">
+              <label for="holder-addr">
+                Token Address:
+              </label>
+              <input type="text" id="holder-addr" v-model="holder_addr" />
             </div>
-        </div>
-        <!-- / Expiration -->
+          </div><!-- / Token Holder ACL-->
+
+          <div v-if="toValue(chosenPollACL) == acl_allowList">
+            <label for="acl-allowlist">
+              Allowed Addresses:
+              <small>(comma and/or newline separated)</small>
+            </label>
+            <textarea
+                id="acl-allowlist"
+                v-model="acl_allowList_addressesStr"></textarea>
+
+            <div v-if="acl_allowList_addresses.invalid">
+              <ul>
+                <li v-for="(item, key) in acl_allowList_addresses.invalid">
+                  {{ item }}: {{ key }}
+                </li>
+              </ul>
+            </div>
+          </div><!-- / Allow List ACL-->
+
+          <div v-if="toValue(chosenPollACL) == acl_xchain">
+            <div class="mb-5 pl-5">
+              <label for="xchain-chainid" class="mr-3 text-base text-gray-900 p-3">
+                Chain:
+              </label>
+              <select v-model="xchain_chainId" id="xchain-chainid" class="p-3">
+                <option value="">-- Custom --</option>
+                <option v-for="(key, item) in xchain_chains" :value="key">{{ item }} ({{ key }})</option>
+              </select>
+              {{ xchain_chainId }}
+            </div><!-- / Select Chain -->
+            <div class="mb-5 pl-5">
+              <label for="xchain-addr">
+                Address:
+              </label>
+              <input type="text" id="xchain-addr" v-model="xchain_addr" />
+            </div><!-- / Token or DAO -->
+            <div class="mb-5 pl-5">
+              <label for="xchain-hash">
+                Block Hash:
+                <button @click.prevent="xchain_refresh"
+                        v-if="xchain_chainId"
+                        class="bg-blue-500 rounded p-1 px-2 text-white">
+                  Refresh
+                </button>
+              </label>
+              <input type="text" id="xchain-hash" v-model="xchain_hash" />
+            </div><!-- / Block Hash -->
+          </div><!-- / X-Chain ACL -->
+        </div><!-- / Extended options -->
 
         <div class="flex justify-center">
-          <div v-if="eth.isSapphire">
+          <div v-if="eth.isHomeChain">
             <AppButton type="submit" variant="primary" :disabled="!canCreatePoll">
               <span v-if="isLoading">Creating…</span>
               <span v-else>
@@ -284,8 +466,9 @@ async function doCreatePoll(): Promise<string> {
             <section class="pt-5">
               <h2 class="capitalize text-white text-2xl font-bold mb-4">Wrong Web3 Chain!</h2>
               <p class="text-white text-base mb-10">
-                In order to continue to use the app, please switch your Web3 wallet to the correct chain, by clicking on the
-                "Connect" button below.
+                In order to continue to use the app, please switch your Web3
+                wallet to the correct chain, by clicking on the "Connect" button
+                below.
               </p>
 
               <div class="flex justify-center">
@@ -317,10 +500,12 @@ async function doCreatePoll(): Promise<string> {
   </div>
   <div v-else>
     <section class="pt-5">
-      <h2 class="capitalize text-white text-2xl font-bold mb-4">No Web3 Wallet Connected!</h2>
+      <h2 class="capitalize text-white text-2xl font-bold mb-4">
+        No Web3 Wallet Connected!
+      </h2>
       <p class="text-white text-base mb-10">
-        In order to continue to use the app, please connect your Web3 wallet and switch to the correct chain, by clicking on the
-        "Connect" button below.
+        In order to continue to use the app, please connect your Web3 wallet and
+        switch to the correct chain, by clicking on the "Connect" button below.
       </p>
 
       <div class="flex justify-center">

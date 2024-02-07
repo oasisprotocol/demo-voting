@@ -18,10 +18,15 @@ interface ImportMetaEnv {
         readonly VITE_NETWORK: string;
         readonly VITE_WEB3_GATEWAY: string;
 
+        readonly VITE_CONTRACT_XCHAIN_HEADERCACHE: string;
+        readonly VITE_CONTRACT_XCHAIN_ACCOUNTCACHE: string;
+        readonly VITE_CONTRACT_XCHAIN_STORAGEPROOF: string;
+
         // Addresses of ACL contracts
         readonly VITE_CONTRACT_ACL_ALLOWALL: string;
         readonly VITE_CONTRACT_ACL_VOTERALLOWLIST: string;
         readonly VITE_CONTRACT_ACL_TOKENHOLDER: string;
+        readonly VITE_CONTRACT_ACL_STORAGEPROOF: string;
 
         // Addresses of main contracts
         readonly VITE_CONTRACT_GASLESSVOTING: string;

@@ -1,4 +1,4 @@
-NPM=pnpm
+include ../common.mk
 
 all: build
 
