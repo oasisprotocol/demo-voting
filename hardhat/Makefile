@@ -1,15 +1,17 @@
+include ../common.mk
+
 .PHONY: build
 build:
-	pnpm hardhat compile --force --quiet
-	pnpm build
+	$(NPM) hardhat compile --force --quiet
+	$(NPM) build
 
 .PHONY: deploy-localnet
 deploy-localnet:
-	pnpm hardhat --network sapphire-localnet deploy --viteenv ../frontend/.env.development
+	$(NPM) hardhat --network sapphire-localnet deploy --viteenv ../frontend/.env.development
 
 .PHONY: test
 test:
-	pnpm test
+	$(NPM) test
 
 .PHONY: clean
 clean:
