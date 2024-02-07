@@ -1,4 +1,4 @@
-import type { Poll } from './types';
+import type { Poll, GetProofResponse } from './types';
 import { Alchemy, Network, Utils } from 'alchemy-sdk';
 import { AEAD, NonceSize, KeySize, TagSize } from '@oasisprotocol/deoxysii';
 import { solidityPackedKeccak256, zeroPadValue } from 'ethers';
@@ -183,5 +183,19 @@ export abstract class AlchemyClient {
     }
 
     return null;
+  }
+
+  static async fetchStorageProof(network: keyof typeof Network, blockHash: string, address: string, slot: number, holder: string): Promise<GetProofResponse> {
+    const client = new Alchemy({
+      apiKey: this.API_KEY,
+      network: Network[network]
+    });
+
+    // TODO Probably unpack and verify
+    return client.core.send('eth_getProof', [
+      address,
+      getMapSlot(holder, slot),
+      blockHash,
+    ]);
   }
 }
