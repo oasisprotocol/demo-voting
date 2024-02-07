@@ -1,6 +1,7 @@
 import type { Poll } from './types';
-
+import { Alchemy, Network, Utils } from 'alchemy-sdk';
 import { AEAD, NonceSize, KeySize, TagSize } from '@oasisprotocol/deoxysii';
+import { solidityPackedKeccak256, zeroPadValue } from 'ethers';
 import { sha256 } from '@noble/hashes/sha256';
 import { LRUCache } from 'typescript-lru-cache';
 
@@ -119,3 +120,68 @@ export async function retry<T extends Promise<any>>(
     return p;
 }
 
+export function getMapSlot(holderAddress: string, mappingPosition: number): string {
+  return solidityPackedKeccak256(
+    ["bytes", "uint256"],
+    [zeroPadValue(holderAddress, 32), mappingPosition]
+  );
+}
+
+export abstract class AlchemyClient {
+  static API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
+
+  static async isERCTokenContract(network: keyof typeof Network, address: string): Promise<boolean> {
+    const client = new Alchemy({
+      apiKey: this.API_KEY,
+      network: Network[network]
+    });
+
+    // Apply heuristic based on token function
+    const abi = ["function totalSupply()"];
+    const iface = new Utils.Interface(abi);
+    const totalSupplyData = iface.encodeFunctionData("totalSupply");
+
+    try {
+      await client.core.call({
+        to: address,
+        data: totalSupplyData,
+      })
+    } catch (e) {
+      return false
+    }
+
+    return true;
+  }
+
+  static async guessStorageSlots(network: keyof typeof Network, blockHash: string, account: string, holder: string): Promise<number | null> {
+    const client = new Alchemy({
+      apiKey: this.API_KEY,
+      network: Network[network]
+    });
+
+    const abi = ["function balanceOf(address account)"];
+    const iface = new Utils.Interface(abi);
+    const balanceData = iface.encodeFunctionData("balanceOf", [holder]);
+
+    // Get balance for the wallet address in hex format -- usage of eth_call
+    const balanceInHex = await client.core.call({
+      to: account,
+      data: balanceData,
+    });
+
+    // Query most likely range of slots
+    for (let i = 0; i < 256; i++) {
+      const result = await client.core.send('eth_getStorageAt', [
+        account,
+        getMapSlot(holder, i),
+        blockHash,
+      ]);
+
+      if (result == balanceInHex && result != '0x0000000000000000000000000000000000000000000000000000000000000000') {
+        return i;
+      }
+    }
+
+    return null;
+  }
+}

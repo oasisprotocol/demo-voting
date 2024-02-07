@@ -40,11 +40,12 @@ describe('Proofs', function () {
         const storageProofNodesRlp = encodeRlp(storageProof.proof.map(decodeRlp));
 
         const r = await sp.verifyStorage(
-            x.blockHash,
-            x.proof.address,
-            slot.slot,
-            zeroPadValue(slot.key, 32),
-            storageProofNodesRlp);
+          x.blockHash,
+          x.proof.address,
+          slot.slot,
+          zeroPadValue(slot.key, 32),
+          storageProofNodesRlp
+        );
 
         expect(r).equals(zeroPadValue(storageProof.value, 32))
       }
