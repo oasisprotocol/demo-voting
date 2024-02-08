@@ -6,6 +6,10 @@ import { sha256 } from '@noble/hashes/sha256';
 import { LRUCache } from 'typescript-lru-cache';
 import { Ref, computed, ref, watch } from 'vue';
 
+export function randomchoice<T>(array:T[]):T {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
 export abstract class Pinata {
   static JWT_TOKEN = import.meta.env.VITE_PINATA_JWT;
   static GATEWAY_URL = import.meta.env.VITE_IPFS_GATEWAY;

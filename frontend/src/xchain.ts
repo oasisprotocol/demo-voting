@@ -1,5 +1,7 @@
 import { Contract, ContractRunner, JsonRpcProvider, Provider } from "ethers"
 
+import { randomchoice } from './utils'
+
 export const chain_info: Record<number,any> = {
     1: {
         "name": "Ethereum Mainnet",
@@ -228,19 +230,18 @@ export const chain_info: Record<number,any> = {
           }
         ]
     }
+} as const;
+
+function _getNameAndChainidMap() {
+  const res: Record<number,string> = {};
+  for( const x in chain_info ) {
+    const y = chain_info[x];
+    res[y.name] = y.chainId;
+  }
+  return res;
 }
 
-export const xchain_chains: Record<string,number> = {
-    'Ethereum Mainnet': 1,
-    'BNB Smart Chain Mainnet': 56,
-    'Arbitrum One': 42161,
-    'Polygon Mainnet': 137,
-    'OP Mainnet': 10
-};
-
-function randomchoice<T>(array:T[]):T {
-    return array[Math.floor(Math.random() * array.length)];
-}
+export const xchain_ChainNamesToChainId = _getNameAndChainidMap();
 
 export function xchainRPC(chainId:number)
 {
