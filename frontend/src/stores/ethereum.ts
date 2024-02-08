@@ -2,7 +2,7 @@ import detectEthereumProvider from '@metamask/detect-provider';
 import { wrap as sapphireWrap, NETWORKS as SAPPHIRE_NETWORKS } from '@oasisprotocol/sapphire-paratime';
 import { toQuantity, JsonRpcProvider, JsonRpcApiProvider, JsonRpcSigner, BrowserProvider } from 'ethers';
 import { defineStore } from 'pinia';
-import { computed, markRaw, ref, shallowRef, toValue } from 'vue';
+import { computed, ref, shallowRef, toValue } from 'vue';
 import type { EIP1193Provider } from './eip1193';
 
 export enum Network {
@@ -68,9 +68,7 @@ declare global {
 
 export const useEthereumStore = defineStore('ethereum', () => {
   const signer = shallowRef<JsonRpcSigner | undefined>(undefined);
-  const provider = shallowRef<JsonRpcApiProvider>(
-    markRaw(sapphireWrap(new JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any'))),
-  );
+  const provider = sapphireWrap(new JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any'));
   const network = ref(Network.FromConfig);
   const address = ref<string | undefined>();
   const status = ref(ConnectionStatus.Unknown);
