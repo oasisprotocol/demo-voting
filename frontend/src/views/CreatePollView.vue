@@ -13,7 +13,7 @@ import { usePollManager, usePollManagerWithSigner } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
 import type { AclOptions, AclOptionsAllowAll, AclOptionsAllowList, AclOptionsToken, AclOptionsXchain, Poll } from '../types';
 import { computedAsync } from '../utils';
-import { tokenDetailsFromProvider, xchain_chains, xchainRPC } from "../xchain";
+import { tokenDetailsFromProvider, xchain_ChainNamesToChainId, xchainRPC } from "../xchain";
 
 const eth = useEthereumStore();
 const dao = usePollManager();
@@ -529,7 +529,7 @@ async function doCreatePoll(): Promise<string> {
               </label>
               <select v-model="xchain_chainId" id="xchain-chainid" class="p-3">
                 <option value="">-- Custom --</option>
-                <option v-for="(key, item) in xchain_chains" :value="key">{{ item }} ({{ key }})</option>
+                <option v-for="(key, item) in xchain_ChainNamesToChainId" :value="key">{{ item }} ({{ key }})</option>
               </select>
               {{ xchain_chainId }}
             </div><!-- / Select Chain -->
