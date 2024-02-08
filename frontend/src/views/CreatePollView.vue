@@ -7,12 +7,13 @@ import AddIcon from '@/components/AddIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import { retry, Pinata, encryptJSON } from '@/utils';
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
-import { getAddress, parseEther, JsonRpcProvider } from 'ethers';
+import { getAddress, parseEther, JsonRpcProvider, getBytes, AbiCoder, Contract } from 'ethers';
 
 import { usePollManager, usePollManagerWithSigner } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
-import type { Poll } from '../types';
-import { xchain_chains, xchainRPC } from "../xchain";
+import type { AclOptions, AclOptionsAllowAll, AclOptionsAllowList, AclOptionsToken, AclOptionsXchain, Poll } from '../types';
+import { computedAsync } from '../utils';
+import { tokenDetailsFromProvider, xchain_chains, xchainRPC } from "../xchain";
 
 const eth = useEthereumStore();
 const dao = usePollManager();
@@ -88,11 +89,33 @@ const acl_allowList_addresses = computed(() => {
 
 // Sapphire token holder ACL stuff
 const holder_addr = ref<string>('');
+const holder_error = computed<string|undefined>(() => {
+  try {
+      getAddress(toValue(holder_addr));
+    }
+    catch(e:any) {
+      if( e.code == 'INVALID_ARGUMENT' ) {
+        return e.shortMessage;
+      }
+    }
+});
+const holder_valid = computed(()=> toValue(holder_error) === undefined);
+const holder_details = computedAsync(async () => {
+  if( ! toValue(holder_valid) ) {
+    return;
+  }
+  const addr = toValue(holder_addr);
+  if( addr ) {
+    console.log('Calculating computed holder details!');
+    return await tokenDetailsFromProvider(addr, eth.provider);
+  }
+});
 
 // Cross-Chain DAO ACL stuff
 const xchain_chainId = ref<number>(1);
 const xchain_hash = ref<string>('');
 const xchain_addr = ref<string>('');
+const xchain_slot = ref<number>();
 const xchain_rpc = computed<JsonRpcProvider|undefined>(() => {
   const chainId = toValue(xchain_chainId);
   if( chainId ) {
@@ -181,8 +204,76 @@ async function createPoll(e: Event): Promise<void> {
   }
 }
 
+/// Returns the `data` parameter used to initialize the ACL when creating a poll
+function getACLOptions(): [string,AclOptions] {
+  const acl = toValue(chosenPollACL);
+  const abi = AbiCoder.defaultAbiCoder();
+  if( acl == acl_allowAll )
+  {
+    return [
+      '0x', // Empty bytes is passed
+      {
+        address: acl,
+        options: {allowAll: true},
+      }
+    ];
+  }
+
+  if( acl == acl_tokenHolder )
+  {
+    const addr = toValue(holder_addr);
+    return [
+      abi.encode(["address"], [addr]),
+      {
+        address: acl,
+        options: {token:addr}
+      }
+    ];
+  }
+
+  if( acl == acl_allowList )
+  {
+    const {addrs, invalid} = toValue(acl_allowList_addresses);
+    if( invalid ) {
+      throw new Error('Cannot setup allow list while invalid entries exist');
+    }
+    return [
+      abi.encode(["address[]"], [addrs.map(x => getBytes(x))]),
+      {
+        address: acl,
+        options: {allowList: true}
+      }
+    ];
+  }
+
+  if( acl == acl_xchain ) {
+    return [
+      abi.encode(["tuple(bytes32,address,uint256)"], [
+        toValue(xchain_hash),
+        toValue(xchain_addr),
+        toValue(xchain_slot)
+      ]),
+      {
+        address: acl,
+        options: {
+          xchain: {
+            chainId: toValue(xchain_chainId),
+            blockHash: toValue(xchain_hash),
+            address: toValue(xchain_addr),
+            slot: toValue(xchain_slot)!
+          }
+        }
+      }
+    ];
+  }
+
+  throw new Error(`Unknown ACL contract ${acl}`);
+}
+
 async function doCreatePoll(): Promise<string> {
   if (errors.value.length > 0) return '';
+
+  const [aclData, aclOptions] = getACLOptions();
 
   const poll: Poll = {
     creator: eth.address!,
@@ -193,11 +284,12 @@ async function doCreatePoll(): Promise<string> {
       publishVotes: publishVotes.value,
       closeTimestamp: toValue(expirationTime) ? (toValue(expirationTime)!.valueOf() / 1000) : 0,
     },
+    acl: aclOptions
   };
   const {key,cipherbytes} = encryptJSON(poll);
 
   const ipfsHash = await Pinata.pinData(cipherbytes);
-  console.log('ipfsHash', ipfsHash);
+  console.log('Poll ipfsHash', ipfsHash);
 
   const proposalParams: PollManager.ProposalParamsStruct = {
     ipfsHash,
@@ -205,7 +297,7 @@ async function doCreatePoll(): Promise<string> {
     numChoices: choices.value.length,
     publishVotes: poll.options.publishVotes,
     closeTimestamp: poll.options.closeTimestamp,
-    acl: import.meta.env.VITE_CONTRACT_ACL_ALLOWALL
+    acl: toValue(chosenPollACL)
   };
 
   console.log('doCreatePoll: Using direct transaction to create proposal');
@@ -217,7 +309,7 @@ async function doCreatePoll(): Promise<string> {
   const daoSigner = usePollManagerWithSigner();
   const createProposalTx = await daoSigner.create(
     proposalParams,
-    new Uint8Array([]),
+    aclData,
     {
       // Provide additional subsidy
       value: toValue(subsidyAmount) ?? 0n
@@ -401,6 +493,14 @@ async function doCreatePoll(): Promise<string> {
                 Token Address:
               </label>
               <input type="text" id="holder-addr" v-model="holder_addr" />
+            </div>
+            <!-- TODO: show token details -->
+            <div v-if="holder_error">
+              {{ holder_error }}
+            </div>
+            <div v-if="holder_valid">
+                Valid!
+                {{ holder_details }}
             </div>
           </div><!-- / Token Holder ACL-->
 

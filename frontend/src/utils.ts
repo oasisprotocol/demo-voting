@@ -4,6 +4,7 @@ import { AEAD, NonceSize, KeySize, TagSize } from '@oasisprotocol/deoxysii';
 import { solidityPackedKeccak256, zeroPadValue } from 'ethers';
 import { sha256 } from '@noble/hashes/sha256';
 import { LRUCache } from 'typescript-lru-cache';
+import { Ref, computed, ref, watch } from 'vue';
 
 export abstract class Pinata {
   static JWT_TOKEN = import.meta.env.VITE_PINATA_JWT;
@@ -42,6 +43,16 @@ export abstract class Pinata {
     Pinata.#cache.set(ipfsHash, data);
     return data;
   };
+}
+
+
+export function computedAsync<T>(getter: () => Promise<T>): Ref<T | undefined> {
+  const result = ref<T>();
+  const asyncValue = computed(getter);
+
+  watch(asyncValue, async () => (result.value = await asyncValue.value), { immediate: true });
+
+  return result;
 }
 
 

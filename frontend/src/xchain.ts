@@ -1,4 +1,4 @@
-import { JsonRpcProvider } from "ethers"
+import { Contract, ContractRunner, JsonRpcProvider, Provider } from "ethers"
 
 export const chain_info: Record<number,any> = {
     1: {
@@ -251,4 +251,28 @@ export function xchainRPC(chainId:number)
     const info = chain_info[chainId];
     const rpc_url = randomchoice(info.rpc as string[]);
     return new JsonRpcProvider(rpc_url);
+}
+
+export async function tokenDetailsFromProvider(addr:string, provider:ContractRunner)
+{
+  const abi = [
+    "function name() public view returns (string)",
+    "function symbol() public view returns (string)",
+    "function decimals() public view returns (uint8)",
+    "function totalSupply() public view returns (uint256)",
+  ];
+  const c = new Contract(addr, abi, provider);
+  try {
+    return {
+      name: await c.name(),
+      symbol: await c.symbol(),
+      decimals: await c.decimals(),
+      totalSupply: await c.totalSupply(),
+    }
+  }
+  catch(e:any) {
+    return {
+      error: e
+    }
+  }
 }
