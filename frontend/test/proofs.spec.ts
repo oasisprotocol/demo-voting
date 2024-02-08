@@ -1,7 +1,7 @@
-import { Account } from '@ethereumjs/util';
+import { bytesToHex, hexToBytes } from '@ethereumjs/util';
 import { Trie } from '@ethereumjs/trie';
-import { BLOCK_HEADERS, PROOFS, decodeBlockHeaderRlp } from './common';
-import { decodeRlp, zeroPadValue, encodeRlp, getBytes, hexlify } from 'ethers';
+import { BLOCK_HEADERS, STORAGE_PROOF_RESPONSE, decodeBlockHeaderRlp } from './common';
+import { hexlify } from 'ethers';
 
 describe('Proofs', function () {
   it('Decode Block Headers', async () => {
@@ -13,42 +13,20 @@ describe('Proofs', function () {
     }
   });
 
-  // it('Example Proofs Verify', async () => {
-  //   for( const x of PROOFS ) {
-  //     const account = Account.fromAccountData(x.proof);
-  //     const block = decodeBlockHeaderRlp(BLOCK_HEADERS[x.blockHash]);
-
-  //     const accountProofNodesRlp = encodeRlp(x.proof.accountProof.map(decodeRlp));
-
-  //     const t = new Trie();
-
-  //     const result = await t.verifyProof(block.stateRoot, account.serialize(), x.proof.accountProof.map((_) => getBytes(_)))
-  //   }
-  // });
-
-  it('StorageProof', async () => {
+  it('STORAGE_PROOF_RESPONSE to verify', async () => {
     // For each of the proofs which have storage proofs
-    for( const x of PROOFS ) {
-      if( 0 == x.proof.storageProof.length ) {
-        continue;
-      }
+    const storageProof = STORAGE_PROOF_RESPONSE.storageProof;
+    const key = storageProof[0].key;
+    const trie = new Trie({ root: hexToBytes(STORAGE_PROOF_RESPONSE.storageHash), useKeyHashing: true }); 
 
-      // Verify the proofs
-      for( const i in x.proof.storageProof ) {
-        const slot = x.slots[i];
-        const storageProof = x.proof.storageProof[i];
-        const storageProofNodesRlp = encodeRlp(storageProof.proof.map(decodeRlp));
+    await trie.fromProof(
+      storageProof[0].proof.map((p) => hexToBytes(p))
+    );
 
-        const r = await sp.verifyStorage(
-          x.blockHash,
-          x.proof.address,
-          slot.slot,
-          zeroPadValue(slot.key, 32),
-          storageProofNodesRlp
-        );
+    let proof = await trie.createProof(hexToBytes(key));
+    let value = await trie.verifyProof(hexToBytes(STORAGE_PROOF_RESPONSE.storageHash), hexToBytes(key), proof);
 
-        expect(r).equals(zeroPadValue(storageProof.value, 32))
-      }
-    }
+    expect(value).not.toBeNull();
+    expect(storageProof[0].value).toEqual(bytesToHex(value!!));
   });
 });
