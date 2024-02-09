@@ -1,4 +1,4 @@
-import type { Poll, GetProofResponse } from './types';
+import type { GetProofResponse } from './types';
 import { Alchemy, Network, Utils } from 'alchemy-sdk';
 import { AEAD, NonceSize, KeySize, TagSize } from '@oasisprotocol/deoxysii';
 import { solidityPackedKeccak256, zeroPadValue } from 'ethers';

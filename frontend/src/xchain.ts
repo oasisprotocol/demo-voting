@@ -1,4 +1,4 @@
-import { Contract, ContractRunner, JsonRpcProvider, Provider } from "ethers"
+import { Contract, ContractRunner, JsonRpcProvider } from "ethers"
 
 import { randomchoice } from './utils'
 
@@ -8,17 +8,17 @@ export const chain_info: Record<number,any> = {
         "chain": "ETH",
         "icon": "ethereum",
         "rpc": [
-          "https://mainnet.infura.io/v3/${INFURA_API_KEY}",
-          "wss://mainnet.infura.io/ws/v3/${INFURA_API_KEY}",
+          //"https://mainnet.infura.io/v3/${INFURA_API_KEY}",
+          //"wss://mainnet.infura.io/ws/v3/${INFURA_API_KEY}",
           "https://api.mycryptoapi.com/eth",
           "https://cloudflare-eth.com",
           "https://ethereum.publicnode.com",
-          "wss://ethereum.publicnode.com",
+          //"wss://ethereum.publicnode.com",
           "https://mainnet.gateway.tenderly.co",
-          "wss://mainnet.gateway.tenderly.co",
-          "https://rpc.blocknative.com/boost",
+          //"wss://mainnet.gateway.tenderly.co",
+          //"https://rpc.blocknative.com/boost",
           "https://rpc.flashbots.net",
-          "https://rpc.flashbots.net/fast",
+          //"https://rpc.flashbots.net/fast",
           "https://rpc.mevblocker.io",
           "https://rpc.mevblocker.io/fast",
           "https://rpc.mevblocker.io/noreverts",
@@ -76,8 +76,8 @@ export const chain_info: Record<number,any> = {
           "https://bsc-dataseed3.ninicoin.io",
           "https://bsc-dataseed4.ninicoin.io",
           "https://bsc.publicnode.com",
-          "wss://bsc.publicnode.com",
-          "wss://bsc-ws-node.nariox.org"
+          //"wss://bsc.publicnode.com",
+          //"wss://bsc-ws-node.nariox.org"
         ],
         "faucets": [],
         "nativeCurrency": {
@@ -116,11 +116,11 @@ export const chain_info: Record<number,any> = {
           "decimals": 18
         },
         "rpc": [
-          "https://arbitrum-mainnet.infura.io/v3/${INFURA_API_KEY}",
-          "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}",
+          //"https://arbitrum-mainnet.infura.io/v3/${INFURA_API_KEY}",
+          //"https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}",
           "https://arb1.arbitrum.io/rpc",
           "https://arbitrum-one.publicnode.com",
-          "wss://arbitrum-one.publicnode.com"
+          //"wss://arbitrum-one.publicnode.com"
         ],
         "faucets": [],
         "explorers": [
@@ -154,9 +154,9 @@ export const chain_info: Record<number,any> = {
         "rpc": [
           "https://mainnet.optimism.io",
           "https://optimism.publicnode.com",
-          "wss://optimism.publicnode.com",
+          //"wss://optimism.publicnode.com",
           "https://optimism.gateway.tenderly.co",
-          "wss://optimism.gateway.tenderly.co"
+          //"wss://optimism.gateway.tenderly.co"
         ],
         "faucets": [],
         "nativeCurrency": {
@@ -201,9 +201,9 @@ export const chain_info: Record<number,any> = {
           "https://rpc-mainnet.matic.quiknode.pro",
           "https://matic-mainnet-full-rpc.bwarelabs.com",
           "https://polygon-bor.publicnode.com",
-          "wss://polygon-bor.publicnode.com",
+          //"wss://polygon-bor.publicnode.com",
           "https://polygon.gateway.tenderly.co",
-          "wss://polygon.gateway.tenderly.co"
+          //"wss://polygon.gateway.tenderly.co"
         ],
         "faucets": [],
         "nativeCurrency": {
@@ -251,6 +251,7 @@ export function xchainRPC(chainId:number)
 
     const info = chain_info[chainId];
     const rpc_url = randomchoice(info.rpc as string[]);
+    console.log('Using RPC URL', rpc_url);
     return new JsonRpcProvider(rpc_url);
 }
 

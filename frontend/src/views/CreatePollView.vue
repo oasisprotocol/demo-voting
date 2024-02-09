@@ -90,14 +90,17 @@ const acl_allowList_addresses = computed(() => {
 // Sapphire token holder ACL stuff
 const holder_addr = ref<string>('');
 const holder_error = computed<string|undefined>(() => {
-  try {
-      getAddress(toValue(holder_addr));
-    }
-    catch(e:any) {
-      if( e.code == 'INVALID_ARGUMENT' ) {
-        return e.shortMessage;
+  const v = toValue(holder_addr);
+  if( v ) {
+    try {
+        getAddress(v);
       }
-    }
+      catch(e:any) {
+        if( e.code == 'INVALID_ARGUMENT' ) {
+          return e.shortMessage;
+        }
+      }
+  }
 });
 const holder_valid = computed(()=> toValue(holder_error) === undefined);
 const holder_details = computedAsync(async () => {
@@ -122,6 +125,21 @@ const xchain_rpc = computed<JsonRpcProvider|undefined>(() => {
     return xchainRPC(chainId);
   }
 });
+const xchain_addr_valid = computed(()=>{
+  const addr = toValue(xchain_addr);
+  try {
+    getAddress(addr);
+    return true;
+  }
+  catch {
+  }
+  return false;
+});
+const xchain_autoconfig_status = ref('');
+async function xchain_autoconfig () {
+  console.log('Doing auto-configure');
+  xchain_autoconfig_status.value = 'auto configuring!';
+}
 
 // Retrieve latest block hash from the chain
 async function xchain_refresh() {
@@ -531,11 +549,17 @@ async function doCreatePoll(): Promise<string> {
                 <option value="">-- Custom --</option>
                 <option v-for="(key, item) in xchain_ChainNamesToChainId" :value="key">{{ item }} ({{ key }})</option>
               </select>
-              {{ xchain_chainId }}
             </div><!-- / Select Chain -->
             <div class="mb-5 pl-5">
               <label for="xchain-addr">
                 Address:
+                  <button @click.prevent="xchain_autoconfig"
+                          v-if="xchain_addr_valid"
+                          class="bg-blue-500 rounded p-1 px-2 text-white">
+                    Auto-Configure
+                  </button>
+
+                  {{ xchain_autoconfig_status }}
               </label>
               <input type="text" id="xchain-addr" v-model="xchain_addr" />
             </div><!-- / Token or DAO -->
@@ -550,6 +574,14 @@ async function doCreatePoll(): Promise<string> {
               </label>
               <input type="text" id="xchain-hash" v-model="xchain_hash" />
             </div><!-- / Block Hash -->
+
+            <div class="mb-5 pl-5">
+              <label for="xchain-slot">
+                Storage Slot:
+              </label>
+              <input type="text" id="xchain-slot" v-model="xchain_slot" />
+            </div><!-- / X-Chain Slot -->
+
           </div><!-- / X-Chain ACL -->
         </div><!-- / Extended options -->
 
