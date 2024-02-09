@@ -64,6 +64,9 @@ importers:
       '@ethereumjs/common':
         specifier: ^4.1.0
         version: 4.1.0
+      '@ethereumjs/rlp':
+        specifier: ^5.0.2
+        version: 5.0.2
       '@ethereumjs/trie':
         specifier: ^6.0.1
         version: 6.0.1
@@ -877,7 +880,7 @@ packages:
     engines: {node: '>=18'}
     dependencies:
       '@ethereumjs/common': 4.1.0
-      '@ethereumjs/rlp': 5.0.1
+      '@ethereumjs/rlp': 5.0.2
       '@ethereumjs/trie': 6.0.1
       '@ethereumjs/tx': 5.1.0
       '@ethereumjs/util': 9.0.1
@@ -897,8 +900,8 @@ packages:
       - c-kzg
     dev: true
 
-  /@ethereumjs/rlp@5.0.1:
-    resolution: {integrity: sha512-Ab/Hfzz+T9Zl+65Nkg+9xAmwKPLicsnQ4NW49pgvJp9ovefuic95cgOS9CbPc9izIEgsqm1UitV0uNveCvud9w==}
+  /@ethereumjs/rlp@5.0.2:
+    resolution: {integrity: sha512-DziebCdg4JpGlEqEdGgXmjqcFoJi+JGulUXwEjsZGAscAQ7MyD/7LE/GVCP29vEQxKc7AAwjT3A2ywHp2xfoCA==}
     engines: {node: '>=18'}
     hasBin: true
     dev: true
@@ -907,7 +910,7 @@ packages:
     resolution: {integrity: sha512-fPdiTaT2aZ2b3LUdBAZVLKnlHz9CV3dR8zdBEX7eDWLOuQ2E9rM2smk2sGdyzXPr9Sf2gmeE1od+CjY0ea8ICg==}
     engines: {node: '>=18'}
     dependencies:
-      '@ethereumjs/rlp': 5.0.1
+      '@ethereumjs/rlp': 5.0.2
       '@ethereumjs/util': 9.0.1
       '@types/readable-stream': 2.3.15
       ethereum-cryptography: 2.1.3
@@ -927,7 +930,7 @@ packages:
         optional: true
     dependencies:
       '@ethereumjs/common': 4.1.0
-      '@ethereumjs/rlp': 5.0.1
+      '@ethereumjs/rlp': 5.0.2
       '@ethereumjs/util': 9.0.1
       ethereum-cryptography: 2.1.3
     transitivePeerDependencies:
@@ -943,7 +946,7 @@ packages:
       c-kzg:
         optional: true
     dependencies:
-      '@ethereumjs/rlp': 5.0.1
+      '@ethereumjs/rlp': 5.0.2
       ethereum-cryptography: 2.1.3
     dev: true
 
@@ -4390,7 +4393,6 @@ packages:
       is-hex-prefixed: 1.0.0
       strip-hex-prefix: 1.0.0
     dev: true
-    bundledDependencies: false
 
   /evp_bytestokey@1.0.3:
     resolution: {integrity: sha512-/f2Go4TognH/KvCISP7OUsHn85hT9nUkxxA9BEWxFn+Oj9o8ZNLm/40hdlgSLyuOimsrTKLUMEorQexp/aPQeA==}
@@ -8626,3 +8628,7 @@ packages:
     dependencies:
       mersenne-twister: 1.1.0
     dev: false
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false

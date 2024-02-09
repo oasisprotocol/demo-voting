@@ -1,5 +1,6 @@
-import { bytesToHex, hexToBytes } from '@ethereumjs/util';
+import { encode } from '@ethereumjs/rlp';
 import { Trie } from '@ethereumjs/trie';
+import { bytesToHex, hexToBytes } from '@ethereumjs/util';
 import { BLOCK_HEADERS, STORAGE_PROOF_RESPONSE, decodeBlockHeaderRlp } from './common';
 import { hexlify } from 'ethers';
 
@@ -14,19 +15,18 @@ describe('Proofs', function () {
   });
 
   it('STORAGE_PROOF_RESPONSE to verify', async () => {
-    // For each of the proofs which have storage proofs
     const storageProof = STORAGE_PROOF_RESPONSE.storageProof;
     const key = storageProof[0].key;
-    const trie = new Trie({ root: hexToBytes(STORAGE_PROOF_RESPONSE.storageHash), useKeyHashing: true }); 
+    const trie = new Trie({ useKeyHashing: true }); 
 
     await trie.fromProof(
       storageProof[0].proof.map((p) => hexToBytes(p))
     );
 
-    let proof = await trie.createProof(hexToBytes(key));
-    let value = await trie.verifyProof(hexToBytes(STORAGE_PROOF_RESPONSE.storageHash), hexToBytes(key), proof);
+    const proof = await trie.createProof(hexToBytes(key));
+    const value = await trie.verifyProof(hexToBytes(STORAGE_PROOF_RESPONSE.storageHash), hexToBytes(key), proof);
 
     expect(value).not.toBeNull();
-    expect(storageProof[0].value).toEqual(bytesToHex(value!!));
+    expect(bytesToHex(encode(storageProof[0].value))).toEqual(bytesToHex(value!!));
   });
 });
