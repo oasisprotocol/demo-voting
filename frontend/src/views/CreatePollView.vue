@@ -267,9 +267,11 @@ function getACLOptions(): [string,AclOptions] {
   if( acl == acl_xchain ) {
     return [
       abi.encode(["tuple(bytes32,address,uint256)"], [
-        toValue(xchain_hash),
-        toValue(xchain_addr),
-        toValue(xchain_slot)
+        [
+          toValue(xchain_hash),
+          toValue(xchain_addr),
+          toValue(xchain_slot)
+        ]
       ]),
       {
         address: acl,

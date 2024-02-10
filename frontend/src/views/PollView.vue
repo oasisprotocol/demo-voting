@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ethers, getBytes } from 'ethers';
+import { ZeroAddress, ethers, getBytes } from 'ethers';
 import { computed, onMounted, ref } from 'vue';
 
-import type { Poll } from '../types';
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
 import { IPollACL__factory } from '@oasisprotocol/demo-voting-contracts';
 import {
@@ -11,6 +10,9 @@ import {
   usePollManagerWithSigner
 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
+import type { Poll } from '../types';
+
+
 import AppButton from '@/components/AppButton.vue';
 import AppBadge from '@/components/AppBadge.vue';
 import CheckedIcon from '@/components/CheckedIcon.vue';
@@ -19,10 +21,12 @@ import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
 import { Pinata, decryptJSON } from '@/utils';
+import { useRouter } from 'vue-router';
 
 const props = defineProps<{ id: string }>();
 const proposalId = `0x${props.id}`;
 
+const router = useRouter();
 const dao = usePollManager();
 const eth = useEthereumStore();
 const gaslessVoting = useGaslessVoting();
@@ -161,10 +165,15 @@ async function doVote(): Promise<void> {
 
 onMounted(async () => {
   const {active, params, topChoice} = await dao.value.PROPOSALS(proposalId);
+  if( params.acl === ZeroAddress ) {
+    console.log(`Empty params! No ACL, Poll ${proposalId} not found!`);
+    router.push({path:`/NotFound/poll/${props.id}`, replace: true});
+    return;
+  }
+
   const proposal = { id: proposalId, active, topChoice, params };
   const ipfsData = await Pinata.fetchData(params.ipfsHash);
   const ipfsParams: Poll = decryptJSON(getBytes(proposal.params.ipfsSecret), ipfsData);
-  console.log('Retrieved poll JSON', ipfsParams);
   poll.value = { proposal, ipfsParams } as unknown as PollManager.ProposalWithIdStructOutput & {
     ipfsParams: Poll;
   };
@@ -179,19 +188,9 @@ onMounted(async () => {
   const acl = IPollACL__factory.connect(params.acl, eth.provider);
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.ZeroAddress;
 
-  // TODO: replace with multicall?
-  await Promise.all([
-    acl
-      .canManagePoll(await dao.value.getAddress(), proposalId, userAddress)
-      .then((status) => {
-        canClosePoll.value = status;
-      }),
-    acl
-      .canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]))
-      .then((status) => {
-        canAclVote.value = status != 0n;
-      }),
-  ]);
+  canClosePoll.value = await acl.canManagePoll(await dao.value.getAddress(), proposalId, userAddress);
+
+  canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
 });
 </script>
 
