@@ -69,6 +69,11 @@ contract StorageProofACL is IPollACL
 
         PollSettings memory settings = s_polls[id];
 
+        // No input, cannot vote
+        if( in_rlpStorageProof.length == 0 ) {
+            return 0;
+        }
+
         out_weight = uint256(storageProof.verifyStorage(
             settings.block_hash,
             settings.account_address,
