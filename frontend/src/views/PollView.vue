@@ -121,7 +121,7 @@ async function doVote(): Promise<void> {
     // Sign voting request
     const signature = await eth.signer.signTypedData(
       {
-        name: 'DAOv1.GaslessVoting',
+        name: 'GaslessVoting',
         version: '1',
         chainId: import.meta.env.VITE_NETWORK,
         verifyingContract: await gv.getAddress(),
@@ -129,6 +129,7 @@ async function doVote(): Promise<void> {
       {
         VotingRequest: [
           { name: 'voter', type: 'address' },
+          { name: 'dao', type: 'address' },
           { name: 'proposalId', type: 'bytes32' },
           { name: 'choiceId', type: 'uint256' },
         ],
