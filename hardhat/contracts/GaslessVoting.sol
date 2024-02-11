@@ -235,8 +235,6 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
     // ------------------------------------------------------------------------
 
-    event KeypairCreated(address addr);
-
     error addKeypair_403();
 
     /**
@@ -253,8 +251,6 @@ contract GaslessVoting is IERC165, IGaslessVoter
         }
 
         address addr = internal_addKeypair(gvid);
-
-        emit KeypairCreated(addr);
 
         if( msg.value > 0 ) {
             payable(addr).transfer(msg.value);
