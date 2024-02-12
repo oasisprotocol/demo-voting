@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ZeroAddress, ethers, getBytes } from 'ethers';
-import { computed, onMounted, ref } from 'vue';
+import { ZeroAddress, ethers, formatEther, getBytes, TransactionReceipt,
+         parseEther, TransactionRequest } from 'ethers';
+import { computed, onMounted, ref, toValue } from 'vue';
 
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
 import { IPollACL__factory } from '@oasisprotocol/demo-voting-contracts';
@@ -20,7 +21,7 @@ import UncheckedIcon from '@/components/UncheckedIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
-import { Pinata, decryptJSON } from '@/utils';
+import { Pinata, decryptJSON, abbrAddr, randomchoice } from '@/utils';
 import { useRouter } from 'vue-router';
 
 const props = defineProps<{ id: string }>();
@@ -50,6 +51,9 @@ const voteCounts = ref<bigint[]>([]);
 const votes = ref<GetVotesReturnT>({out_count: 0n, out_voters: [], out_choices: []});
 let canClosePoll = ref<Boolean>(false);
 let canAclVote = ref<Boolean>(false);
+const gvAddrs = ref<string[]>([]);
+const gvBalances = ref<bigint[]>();
+const gvTotalBalance = ref<bigint>(0n);
 
 const canVote = computed(() => {
   if (!eth.address) return false;
@@ -91,8 +95,8 @@ async function vote(e: Event): Promise<void> {
     isLoading.value = true;
     await doVote();
     hasVoted.value = true;
-  } catch (e: any) {
-    error.value = e.reason ?? e.message;
+  //} catch (e: any) {
+  //  error.value = e.reason ?? e.message;
   } finally {
     isLoading.value = false;
   }
@@ -104,8 +108,9 @@ async function doVote(): Promise<void> {
   const choice = selectedChoice.value;
 
   const gv = (await gaslessVoting).value;
+  let submitAndPay = true;
 
-  if (gv)
+  if (toValue(gvTotalBalance) > 0n)
   {
     if (!eth.signer) {
       throw new Error('No signer!');
@@ -138,30 +143,85 @@ async function doVote(): Promise<void> {
     );
     const rsv = ethers.Signature.from(signature);
 
+    // Get nonce and random address
+    const submitAddr = randomchoice(toValue(gvAddrs));
+    const submitNonce = await eth.provider.getTransactionCount(submitAddr);
+    console.log(`Gasless voting, chose address:${submitAddr} (nonce: ${submitNonce})`);
+
     // Submit voting request to get signed transaction
     const feeData = await eth.provider.getFeeData();
     console.log('doVote.gasless: constructing tx', 'gasPrice', feeData.gasPrice);
-    const tx = await gv.makeVoteTransaction(feeData.gasPrice!, request, new Uint8Array([]), rsv);
+    const tx = await gv.makeVoteTransaction(submitAddr, submitNonce, feeData.gasPrice!, request, new Uint8Array([]), rsv);
 
-    // Submit signed transaction via plain JSON-RPC provider (avoiding saphire.wrap)
-    let plain_resp = await eth.provider.broadcastTransaction(tx);
-    console.log('doVote.gasless: waiting for tx', plain_resp.hash);
-    const receipt = await eth.provider.waitForTransaction(plain_resp.hash);
+    // Submit pre-signed signed transaction
+    let plain_resp;
+    let receipt: TransactionReceipt | null = null;
+    try {
+      plain_resp = await eth.provider.broadcastTransaction(tx);
+      console.log('doVote.gasless: waiting for tx', plain_resp.hash);
+      receipt = await eth.provider.waitForTransaction(plain_resp.hash);
+    }
+    catch( e:any ) {
+      if( (e.message as string).includes('insufficient balance to pay fees') ) {
+        submitAndPay = true;
+        console.log('Insufficient balance!');
+      }
+      else {
+        throw e;
+      }
+    }
 
-    if (receipt!.status != 1) throw new Error('cast vote tx failed');
-
-    console.log('doVote.gasless: success');
+    // Transaction fails... oh noes
+    if (receipt === null || receipt.status != 1) {
+      // TODO: how can we tell if it failed due to out of gas?
+      // Give them the option to re-submit their vote
+      let tx_hash: string = '';
+      if( receipt ) {
+        tx_hash = `\n\nFalied tx: ${receipt.hash}`;
+      }
+      console.log('Receipt is', receipt);
+      const result = confirm(`No gas left in subsidy account, submit from your own account? ${tx_hash}`);
+      if( result ) {
+        submitAndPay = true;
+      }
+      else {
+        throw new Error(`gasless voting failed: ${receipt}`)
+      }
+    }
+    else {
+      console.log('doVote.gasless: success');
+      submitAndPay = false;
+    }
   }
-  else {
+
+  if( submitAndPay ) {
     console.log('doVote: casting vote using normal tx');
     await eth.switchNetwork(Network.FromConfig);
-    const tx = await dao.value.vote(proposalId, choice, new Uint8Array([]));
+    const daoSigner = usePollManagerWithSigner();
+    const tx = await daoSigner.vote(proposalId, choice, new Uint8Array([]));
     const receipt = await tx.wait();
 
     if (receipt!.status != 1) throw new Error('cast vote tx failed');
   }
 
   existingVote.value = choice;
+}
+
+async function doTopup(addr:string)
+{
+  let result = prompt(`Topup ${addr}\nAmount (in ROSE):`, '1');
+  if( ! result ) {
+    return;
+  }
+  result = result.trim();
+  const amount = parseEther(result);
+  if( amount > 0n ) {
+    await eth.signer?.sendTransaction({
+      to: addr,
+      value: amount,
+      data: "0x"
+    })
+  }
 }
 
 onMounted(async () => {
@@ -190,6 +250,18 @@ onMounted(async () => {
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.ZeroAddress;
 
   canClosePoll.value = await acl.canManagePoll(await dao.value.getAddress(), proposalId, userAddress);
+
+  // TODO: get proof for xchain etc
+
+  // Retrieve gasless voting addresses & balances
+  const gv = (await gaslessVoting).value;
+  const addrsBalances = await gv.listAddresses(await toValue(dao).getAddress(), proposalId);
+  gvAddrs.value = addrsBalances.out_addrs;
+  gvBalances.value = addrsBalances.out_balances;
+  gvTotalBalance.value = gvBalances.value.reduce((a,b) => a + b);
+  if( toValue(gvTotalBalance) > 0n ) {
+    console.log('Gasless voting available', formatEther(toValue(gvTotalBalance)), 'ROSE balance, addrs:', gvAddrs.value.join(', '));
+  }
 
   canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
 });
@@ -267,6 +339,26 @@ onMounted(async () => {
             </AppButton>
           </div>
         </div>
+
+        <div
+          v-if="gvAddrs.length > 0"
+          class="text-white text-base mt-10"
+        >
+          <p class="mb-5 font-bold">Gasless voting enabled:</p>
+          <ul>
+            <li v-for="(item, index) in gvAddrs">
+              <abbr :title="item"><code>{{ abbrAddr(item) }}</code></abbr>
+              ({{ formatEther(gvBalances![index]) }} ROSE)
+              <a  v-if="eth.signer"
+                  href="#"
+                  @click.prevent="doTopup(item)"
+                  class="rounded bg-white text-black p-2 ml-5 text-xs">
+                Topup
+              </a>
+            </li>
+          </ul>
+        </div>
+
         <div v-else-if="poll?.proposal?.active">
           <br /><br />
           <section class="pt-5" v-if="!eth.signer">

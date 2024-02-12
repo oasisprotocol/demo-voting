@@ -17,6 +17,8 @@ interface IGaslessVoter {
     function onPollClosed(bytes32 proposalId) external;
 
     function makeVoteTransaction(
+        address addr,
+        uint64 nonce,
         uint256 gasPrice,
         VotingRequest calldata request,
         bytes calldata in_data,

@@ -18,7 +18,6 @@ contract GaslessVoting is IERC165, IGaslessVoter
         bytes32 gvid;
         address addr;
         bytes32 secret;
-        uint64 nonce;
     }
 
     struct PollSettings {
@@ -93,7 +92,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
     function listAddresses(address in_dao, bytes32 in_proposalId)
         external view
-        returns (address[] memory out_addrs)
+        returns (address[] memory out_addrs, uint256[] memory out_balances)
     {
         bytes32 gvid = internal_gvid(in_dao, in_proposalId);
 
@@ -105,8 +104,10 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         if( n > 0 ) {
             out_addrs = new address[](n);
+            out_balances = new uint256[](n);
             for( uint i = 0; i < n; i++ ) {
                 out_addrs[i] = keypairs[i].addr;
+                out_balances[i] = keypairs[i].addr.balance;
             }
         }
     }
@@ -131,8 +132,11 @@ contract GaslessVoting is IERC165, IGaslessVoter
         poll.owner = in_creator;
         poll.dao = IPollManager(msg.sender);
 
-        if( msg.value > 0 ) {
-            internal_addKeypair(gvid);
+        if( msg.value > 0 )
+        {
+            address payable x = internal_addKeypair(gvid);
+
+            x.transfer(msg.value);
         }
     }
 
@@ -162,7 +166,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
      */
     function internal_addKeypair(bytes32 in_gvid)
         internal
-        returns (address)
+        returns (address payable)
     {
         (address signerAddr, bytes32 signerSecret) = EthereumUtils.generateKeypair();
 
@@ -171,13 +175,12 @@ contract GaslessVoting is IERC165, IGaslessVoter
         keypairs.push(EthereumKeypair({
             gvid: in_gvid,
             addr: signerAddr,
-            secret: signerSecret,
-            nonce: 0
+            secret: signerSecret
         }));
 
         s_addrToKeypair[signerAddr] = KeypairIndex(in_gvid, keypairs.length - 1);
 
-        return signerAddr;
+        return payable(signerAddr);
     }
 
     // ------------------------------------------------------------------------
@@ -208,6 +211,37 @@ contract GaslessVoting is IERC165, IGaslessVoter
     // ------------------------------------------------------------------------
 
     error internal_keypairByAddress_404();
+
+    error internal_keypairForGvidByAddress_404();
+
+    error internal_keypairForGvidByAddress_403();
+
+    /**
+     * Select a keypair given its address
+     * Reverts if it's not one of our keypairs
+     * @param addr Ethererum public address
+     */
+    function internal_keypairForGvidByAddress(bytes32 in_gvid, address addr)
+        internal view
+        returns (
+            EthereumKeypair storage out_keypair
+        )
+    {
+        KeypairIndex memory idx = s_addrToKeypair[addr];
+
+        if( idx.gvid != in_gvid ) {
+            revert internal_keypairForGvidByAddress_403();
+        }
+
+        // Keypair must exist for address
+        if( idx.gvid == 0 ) {
+            revert internal_keypairForGvidByAddress_404();
+        }
+
+        PollSettings storage poll = s_polls[idx.gvid];
+
+        out_keypair = poll.keypairs[idx.n];
+    }
 
     /**
      * Select a keypair given its address
@@ -276,6 +310,8 @@ contract GaslessVoting is IERC165, IGaslessVoter
      * @return output Signed transaction to submit via eth_sendRawTransaction
      */
     function makeVoteTransaction(
+        address in_addr,
+        uint64 in_nonce,
         uint256 in_gasPrice,
         VotingRequest calldata in_request,
         bytes calldata in_data,
@@ -318,14 +354,14 @@ contract GaslessVoting is IERC165, IGaslessVoter
         bytes32 ciphertextNonce = keccak256(abi.encodePacked(encryptionSecret, requestDigest));
 
         // Choose a random keypair to submit the transaction from
-        EthereumKeypair memory kp = internal_randomKeypair(gvid);
+        EthereumKeypair memory kp = internal_keypairForGvidByAddress(gvid, in_addr);
 
         // Return signed transaction invoking 'submitEncryptedVote'
         return EIP155Signer.sign(
             kp.addr,
             kp.secret,
             EIP155Signer.EthTx({
-                nonce: kp.nonce,
+                nonce: in_nonce,
                 gasPrice: in_gasPrice,
                 gasLimit: 250000,
                 to: address(this),
@@ -374,8 +410,6 @@ contract GaslessVoting is IERC165, IGaslessVoter
         if( false == success ) {
             revert proxy_500();
         }
-
-        kp.nonce += 1;
     }
 
     // ------------------------------------------------------------------------
