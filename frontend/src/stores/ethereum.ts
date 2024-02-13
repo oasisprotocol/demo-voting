@@ -16,6 +16,7 @@ export enum Network {
   SapphireTestnet = 0x5aff,
   SapphireMainnet = 0x5afe,
   SapphireLocalnet = 0x5afd,
+  PolygonMumbai = 13881,
   Local = 1337,
 
   FromConfig = parseInt(import.meta.env.VITE_NETWORK),
@@ -39,6 +40,7 @@ const networkNameMap: Record<Network, string> = {
   [Network.SapphireTestnet]: 'Sapphire Testnet',
   [Network.SapphireMainnet]: 'Sapphire Mainnet',
   [Network.SapphireLocalnet]: 'Sapphire Localnet',
+  [Network.PolygonMumbai]: 'Polygon Mumbai',
   [Network.BscMainnet]: 'BSC',
   [Network.BscTestnet]: 'BSC Testnet',
 } as const;
@@ -123,7 +125,6 @@ export const useEthereumStore = defineStore('ethereum', () => {
   async function getSigner (in_doConnect?:boolean, in_doSwitch?:boolean, in_account?:string) {
     let l_signer : JsonRpcSigner | undefined;
     let l_provider : JsonRpcApiProvider | undefined;
-
     if( ! signer.value || (in_account && await signer.value.getAddress() != in_account) ) {
       const ethProvider = await detectEthereumProvider<EIP1193Provider>();
       if( ! ethProvider ) {
