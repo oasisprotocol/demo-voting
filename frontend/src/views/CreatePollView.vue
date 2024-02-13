@@ -5,7 +5,7 @@ import AppButton from '@/components/AppButton.vue';
 import RemoveIcon from '@/components/RemoveIcon.vue';
 import AddIcon from '@/components/AddIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
-import { retry, Pinata, encryptJSON, isERCTokenContract, guessStorageSlot, fetchStorageProof } from '@/utils';
+import { retry, Pinata, encryptJSON, isERCTokenContract, guessStorageSlot } from '@/utils';
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
 import { getAddress, parseEther, JsonRpcProvider, getBytes, AbiCoder, Contract } from 'ethers';
 
@@ -120,7 +120,7 @@ const xchain_hash = ref<string>('');
 const xchain_addr = ref<string>('');
 const xchain_addr_valid = ref<boolean>(false);
 const xchain_holder = ref<string>('');
-const xchain_holder_balance = ref<number>();
+const xchain_holder_balance = ref<bigint>();
 const xchain_holder_valid = ref<boolean>(false);
 const xchain_slot = ref<number>();
 const xchain_slot_valid = ref<boolean>(false);
@@ -141,21 +141,22 @@ watch(xchain_addr, async (xchain_addr) => {
     console.log('watched');
     xchain_addr_valid.value = true;
   } else {
-    xchain_addr_valid.value = false;  
+    xchain_addr_valid.value = false;
   }
 })
 
 watch(xchain_holder, async (xchain_holder) => {
-  const addr = toValue(xchain_addr);
-  const holder = toValue(xchain_holder);
   const rpc = toValue(xchain_rpc);
-
-  const slot = await guessStorageSlot(rpc, addr, holder);
-  if (slot) {
-    xchain_holder_valid.value = true;
-    xchain_holder_balance.value = slot.balance;
-    xchain_slot.value = slot.index;
-    xchain_slot_valid.value = true;
+  if( rpc ) {
+    const addr = toValue(xchain_addr);
+    const holder = toValue(xchain_holder);
+    const slot = await guessStorageSlot(rpc, addr, holder);
+    if (slot) {
+      xchain_holder_valid.value = true;
+      xchain_holder_balance.value = slot.balance;
+      xchain_slot.value = slot.index;
+      xchain_slot_valid.value = true;
+    }
   }
 })
 
@@ -211,7 +212,7 @@ const isDateValid = computed(() => {
 const canCreatePoll = computed(() => {
   const acl = toValue(chosenPollACL);
   if( acl == acl_xchain ) {
-    return !toValue(isLoading) && toValue(isDateValid) && toValue(isSubsidyValid) && toValue(xchain_addr_valid) && toValue(xchain_holder_valid && toValue(xchain_slot));    
+    return !toValue(isLoading) && toValue(isDateValid) && toValue(isSubsidyValid) && toValue(xchain_addr_valid) && toValue(xchain_holder_valid && toValue(xchain_slot));
   }
 
   return !toValue(isLoading) && toValue(isDateValid) && toValue(isSubsidyValid);
@@ -602,7 +603,7 @@ async function doCreatePoll(): Promise<string> {
             <div class="mb-5 pl-5" v-if="xchain_holder_valid">
               <label for="xchain-slot">
                 Storage Slot:
-                  {{ xchain_holder_balance > 0 ? xchain_holder_balance : '' }}
+                  {{ (xchain_holder_balance??0) > 0 ? xchain_holder_balance : '' }}
               </label>
               <input type="text" id="xchain-slot" v-model="xchain_slot" />
             </div><!-- / X-Chain Slot -->
