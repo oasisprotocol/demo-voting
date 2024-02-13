@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ZeroAddress, ethers, formatEther, getBytes, TransactionReceipt,
+encodeRlp, decodeRlp,
          parseEther, TransactionRequest } from 'ethers';
 import { computed, onMounted, ref, toValue } from 'vue';
 
@@ -11,7 +12,7 @@ import {
   usePollManagerWithSigner
 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
-import type { Poll } from '../types';
+import type { Poll, AclOptionsXchain } from '../types';
 
 
 import AppButton from '@/components/AppButton.vue';
@@ -21,7 +22,8 @@ import UncheckedIcon from '@/components/UncheckedIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
-import { Pinata, decryptJSON, abbrAddr, randomchoice } from '@/utils';
+import { Pinata, AlchemyClient, decryptJSON, abbrAddr, randomchoice } from '@/utils';
+import { xchainRPC } from "../xchain";
 import { useRouter } from 'vue-router';
 
 const props = defineProps<{ id: string }>();
@@ -198,6 +200,7 @@ async function doVote(): Promise<void> {
     console.log('doVote: casting vote using normal tx');
     await eth.switchNetwork(Network.FromConfig);
     const daoSigner = usePollManagerWithSigner();
+    // TODO retrieve cached proof
     const tx = await daoSigner.vote(proposalId, choice, new Uint8Array([]));
     const receipt = await tx.wait();
 
@@ -252,6 +255,16 @@ onMounted(async () => {
   canClosePoll.value = await acl.canManagePoll(await dao.value.getAddress(), proposalId, userAddress);
 
   // TODO: get proof for xchain etc
+  if (ipfsParams.acl.options['xchain']) {
+    const xchain = (ipfsParams.acl.options as AclOptionsXchain).xchain;
+    // TODO: deprecate Alchemy
+    const provider = xchainRPC(xchain.chainId);
+    // TODO: fix user address
+    // TODO: use correct network getter
+    const response = await AlchemyClient.fetchStorageProof((await provider.getNetwork()).name, xchain.blockHash, xchain.address, xchain.slot, '0xA3E0B561be4d2a0697Da0e10dec02e432ACcF90a');
+    const proof = encodeRlp(response.storageProof[0].proof.map(decodeRlp));
+    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof);
+  }
 
   // Retrieve gasless voting addresses & balances
   const gv = (await gaslessVoting).value;
@@ -262,8 +275,6 @@ onMounted(async () => {
   if( toValue(gvTotalBalance) > 0n ) {
     console.log('Gasless voting available', formatEther(toValue(gvTotalBalance)), 'ROSE balance, addrs:', gvAddrs.value.join(', '));
   }
-
-  canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
 });
 </script>
 

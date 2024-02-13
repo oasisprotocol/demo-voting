@@ -229,7 +229,32 @@ export const chain_info: Record<number,any> = {
             "standard": "EIP3091"
           }
         ]
-    }
+    },
+    13881: {
+      "name": "Polygon Testnet Mumbai",
+      "chain": "Polygon",
+      "icon": "polygon",
+      "rpc": [
+        "https://rpc.ankr.com/polygon_mumbai",
+        "https://rpc.ankr.com/polygon_mumbai",
+        "https://gateway.tenderly.co/public/polygon-mumbai",
+
+
+      ],
+      "faucets": [],
+      "nativeCurrency": {
+        "name": "MATIC",
+        "symbol": "MATIC",
+        "decimals": 18
+      },
+      "infoURL": "https://polygon.technology/",
+      "shortName": "matic",
+      "chainId": 13881,
+      "networkId": 13881,
+      "explorers": [
+      ]
+  },
+
 } as const;
 
 function _getNameAndChainidMap() {

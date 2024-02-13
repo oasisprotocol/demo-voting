@@ -191,11 +191,28 @@ export async function guessStorageSlot(provider: JsonRpcProvider, account: strin
   return null;
 }
 
-export async function fetchStorageProof(provider: JsonRpcProvider, blockHash: string, address: string, slot: number, holder: string): Promise<GetProofResponse> {
-  // TODO Probably validate here first
-  return provider.send('eth_getProof', [
-    address,
-    getMapSlot(holder, slot),
-    blockHash,
-  ]);
+// export async function fetchStorageProof(provider: JsonRpcProvider, blockHash: string, address: string, slot: number, holder: string): Promise<GetProofResponse> {
+//   // TODO Probably validate here first
+//   return provider.send('eth_getProof', [
+//     address,
+//     getMapSlot(holder, slot),
+//     blockHash,
+//   ]);
+// }
+
+export abstract class AlchemyClient {
+  static API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
+  static async fetchStorageProof(network: keyof typeof Network, blockHash: string, address: string, slot: number, holder: string): Promise<GetProofResponse> {
+    const client = new Alchemy({
+      apiKey: this.API_KEY,
+      network: Network.MATIC_MUMBAI
+    });
+
+    // TODO Probably unpack and verify
+    return client.core.send('eth_getProof', [
+      address,
+      [getMapSlot(holder, slot)],
+      blockHash,
+    ]);
+  }
 }
