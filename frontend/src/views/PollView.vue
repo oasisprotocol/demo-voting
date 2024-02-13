@@ -22,8 +22,8 @@ import UncheckedIcon from '@/components/UncheckedIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
-import { Pinata, AlchemyClient, decryptJSON, abbrAddr, randomchoice } from '@/utils';
-import { xchainRPC } from "../xchain";
+import { Pinata, decryptJSON, abbrAddr, randomchoice } from '@/utils';
+import { xchainRPC, fetchStorageProof } from "../xchain";
 import { useRouter } from 'vue-router';
 
 const props = defineProps<{ id: string }>();
@@ -212,7 +212,7 @@ async function doVote(): Promise<void> {
 
 async function doTopup(addr:string)
 {
-  let result = prompt(`Topup ${addr}\nAmount (in ROSE):`, '1');
+  let result = prompt(`Topup voting subsidy account:\n\n  ${addr}\n\nAmount (in ROSE):`, '1');
   if( ! result ) {
     return;
   }
@@ -255,15 +255,15 @@ onMounted(async () => {
   canClosePoll.value = await acl.canManagePoll(await dao.value.getAddress(), proposalId, userAddress);
 
   // TODO: get proof for xchain etc
-  if (ipfsParams.acl.options['xchain']) {
+  if ('xchain' in ipfsParams.acl.options) {
     const xchain = (ipfsParams.acl.options as AclOptionsXchain).xchain;
-    // TODO: deprecate Alchemy
     const provider = xchainRPC(xchain.chainId);
-    // TODO: fix user address
-    // TODO: use correct network getter
-    const response = await AlchemyClient.fetchStorageProof((await provider.getNetwork()).name, xchain.blockHash, xchain.address, xchain.slot, '0xA3E0B561be4d2a0697Da0e10dec02e432ACcF90a');
-    const proof = encodeRlp(response.storageProof[0].proof.map(decodeRlp));
-    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof);
+    const signer_addr = await eth.signer?.getAddress();
+    if( signer_addr ) {
+      const response = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
+      const proof = encodeRlp(response.storageProof[0].proof.map(decodeRlp));
+      canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof);
+    }
   }
 
   // Retrieve gasless voting addresses & balances
