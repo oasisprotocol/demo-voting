@@ -1,6 +1,8 @@
-import { Contract, ContractRunner, JsonRpcProvider } from "ethers"
+import { Contract, ContractRunner, JsonRpcProvider, getBigInt, toBeHex } from "ethers"
+import { ZeroHash, solidityPackedKeccak256, zeroPadValue } from 'ethers';
 
 import { randomchoice } from './utils'
+import { GetProofResponse } from "./types";
 
 export const chain_info: Record<number,any> = {
     1: {
@@ -302,4 +304,67 @@ export async function tokenDetailsFromProvider(addr:string, provider:ContractRun
       error: e
     }
   }
+}
+
+
+
+export function getMapSlot(holderAddress: string, mappingPosition: number): string {
+  return solidityPackedKeccak256(
+    ["bytes", "uint256"],
+    [zeroPadValue(holderAddress, 32), mappingPosition]
+  );
+}
+
+export async function isERCTokenContract(provider: JsonRpcProvider, address: string): Promise<boolean> {
+  try {
+    tokenDetailsFromProvider(address, provider);
+  } catch (e) {
+    return false
+  }
+
+  return true;
+}
+
+export async function guessStorageSlot(provider: JsonRpcProvider, account: string, holder: string, blockHash = 'latest') {
+  const abi = ["function balanceOf(address account)"];
+  const c = new Contract(account, abi, provider);
+  const balance = await c.balanceOf(holder);
+  const balanceInHex = toBeHex(balance, 32);
+
+  // TODO: shortlist most frequently used slots, then do brute force
+
+  // Query most likely range of slots
+  for (let i = 0; i < 256; i++) {
+    console.log(i)
+    const result = await provider.send('eth_getStorageAt', [
+      account,
+      getMapSlot(holder, i),
+      blockHash,
+    ]);
+
+    if (result == balanceInHex && result != ZeroHash) {
+      return {
+        index: i,
+        balance: getBigInt(balanceInHex),
+      };
+    }
+  }
+}
+
+// export async function fetchStorageProof(provider: JsonRpcProvider, blockHash: string, address: string, slot: number, holder: string): Promise<GetProofResponse> {
+//   // TODO Probably validate here first
+//   return provider.send('eth_getProof', [
+//     address,
+//     getMapSlot(holder, slot),
+//     blockHash,
+//   ]);
+// }
+
+export async function fetchStorageProof(provider: JsonRpcProvider, blockHash: string, address: string, slot: number, holder: string): Promise<GetProofResponse> {
+  // TODO Probably unpack and verify
+  return provider.send('eth_getProof', [
+    address,
+    [getMapSlot(holder, slot)],
+    blockHash,
+  ]);
 }
