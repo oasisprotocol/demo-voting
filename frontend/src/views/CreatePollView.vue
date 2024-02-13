@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, toValue } from 'vue';
+import { ref, watch, computed, toValue } from 'vue';
 
 import AppButton from '@/components/AppButton.vue';
 import RemoveIcon from '@/components/RemoveIcon.vue';
 import AddIcon from '@/components/AddIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
-import { retry, Pinata, encryptJSON } from '@/utils';
+import { retry, Pinata, encryptJSON, isERCTokenContract, guessStorageSlot, fetchStorageProof } from '@/utils';
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
 import { getAddress, parseEther, JsonRpcProvider, getBytes, AbiCoder, Contract } from 'ethers';
 
@@ -118,28 +118,46 @@ const holder_details = computedAsync(async () => {
 const xchain_chainId = ref<number>(1);
 const xchain_hash = ref<string>('');
 const xchain_addr = ref<string>('');
+const xchain_addr_valid = ref<boolean>(false);
+const xchain_holder = ref<string>('');
+const xchain_holder_balance = ref<number>();
+const xchain_holder_valid = ref<boolean>(false);
 const xchain_slot = ref<number>();
+const xchain_slot_valid = ref<boolean>(false);
+const xchain_token = ref<string>('');
 const xchain_rpc = computed<JsonRpcProvider|undefined>(() => {
   const chainId = toValue(xchain_chainId);
   if( chainId ) {
     return xchainRPC(chainId);
   }
 });
-const xchain_addr_valid = computed(()=>{
-  const addr = toValue(xchain_addr);
-  try {
-    getAddress(addr);
-    return true;
-  }
-  catch {
-  }
-  return false;
-});
 const xchain_autoconfig_status = ref('');
-async function xchain_autoconfig () {
-  console.log('Doing auto-configure');
-  xchain_autoconfig_status.value = 'auto configuring!';
-}
+
+watch(xchain_addr, async (xchain_addr) => {
+  const addr = toValue(xchain_addr);
+  const rpc = toValue(xchain_rpc);
+
+  if (addr && rpc && await isERCTokenContract(rpc, addr)) {
+    console.log('watched');
+    xchain_addr_valid.value = true;
+  } else {
+    xchain_addr_valid.value = false;  
+  }
+})
+
+watch(xchain_holder, async (xchain_holder) => {
+  const addr = toValue(xchain_addr);
+  const holder = toValue(xchain_holder);
+  const rpc = toValue(xchain_rpc);
+
+  const slot = await guessStorageSlot(rpc, addr, holder);
+  if (slot) {
+    xchain_holder_valid.value = true;
+    xchain_holder_balance.value = slot.balance;
+    xchain_slot.value = slot.index;
+    xchain_slot_valid.value = true;
+  }
+})
 
 // Retrieve latest block hash from the chain
 async function xchain_refresh() {
@@ -150,7 +168,6 @@ async function xchain_refresh() {
     return block.hash;
   }
 }
-
 
 // Optional expiration date must be in future & must parse correctly
 const hasExpiration = ref(false);
@@ -191,7 +208,14 @@ const isDateValid = computed(() => {
   return true;
 });
 
-const canCreatePoll = computed(() => !toValue(isLoading) && toValue(isDateValid) && toValue(isSubsidyValid));
+const canCreatePoll = computed(() => {
+  const acl = toValue(chosenPollACL);
+  if( acl == acl_xchain ) {
+    return !toValue(isLoading) && toValue(isDateValid) && toValue(isSubsidyValid) && toValue(xchain_addr_valid) && toValue(xchain_holder_valid && toValue(xchain_slot));    
+  }
+
+  return !toValue(isLoading) && toValue(isDateValid) && toValue(isSubsidyValid);
+});
 
 const publishVotes = ref(false);
 const isLoading = ref(false);
@@ -555,17 +579,34 @@ async function doCreatePoll(): Promise<string> {
             <div class="mb-5 pl-5">
               <label for="xchain-addr">
                 Address:
-                  <button @click.prevent="xchain_autoconfig"
-                          v-if="xchain_addr_valid"
-                          class="bg-blue-500 rounded p-1 px-2 text-white">
-                    Auto-Configure
-                  </button>
-
-                  {{ xchain_autoconfig_status }}
+                  <!-- <button @click.prevent="xchain_autoconfig"
+                    v-if="xchain_addr_valid"
+                    class="bg-blue-500 rounded p-1 px-2 text-white">
+                    Validate
+                  </button> -->
+                  {{ xchain_addr_valid ? 'is valid token' : '' }}
               </label>
               <input type="text" id="xchain-addr" v-model="xchain_addr" />
             </div><!-- / Token or DAO -->
-            <div class="mb-5 pl-5">
+            <div class="mb-5 pl-5" v-if="xchain_addr_valid">
+              <label for="xchain-holder">
+                Holder:
+                  <!-- <button @click.prevent="xchain_holder"
+                    class="bg-blue-500 rounded p-1 px-2 text-white">
+                  </button>
+                  {{ xchain_holder_status }} -->
+                  {{ xchain_holder_valid ? 'is valid holder' : '' }}
+              </label>
+              <input type="text" id="xchain-holder" v-model="xchain_holder" />
+            </div><!-- / Token or DAO -->
+            <div class="mb-5 pl-5" v-if="xchain_holder_valid">
+              <label for="xchain-slot">
+                Storage Slot:
+                  {{ xchain_holder_balance > 0 ? xchain_holder_balance : '' }}
+              </label>
+              <input type="text" id="xchain-slot" v-model="xchain_slot" />
+            </div><!-- / X-Chain Slot -->
+            <div class="mb-5 pl-5" v-if="xchain_holder_valid">
               <label for="xchain-hash">
                 Block Hash:
                 <button @click.prevent="xchain_refresh"
@@ -576,14 +617,6 @@ async function doCreatePoll(): Promise<string> {
               </label>
               <input type="text" id="xchain-hash" v-model="xchain_hash" />
             </div><!-- / Block Hash -->
-
-            <div class="mb-5 pl-5">
-              <label for="xchain-slot">
-                Storage Slot:
-              </label>
-              <input type="text" id="xchain-slot" v-model="xchain_slot" />
-            </div><!-- / X-Chain Slot -->
-
           </div><!-- / X-Chain ACL -->
         </div><!-- / Extended options -->
 
