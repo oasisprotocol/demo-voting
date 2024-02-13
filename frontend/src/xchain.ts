@@ -10,21 +10,22 @@ export const chain_info: Record<number,any> = {
         "chain": "ETH",
         "icon": "ethereum",
         "rpc": [
+          "https://eth-mainnet.g.alchemy.com/v2/asYK8chMrnekMUTAvVwaNG2OHyp4fLCe"
           //"https://mainnet.infura.io/v3/${INFURA_API_KEY}",
           //"wss://mainnet.infura.io/ws/v3/${INFURA_API_KEY}",
-          "https://api.mycryptoapi.com/eth",
-          "https://cloudflare-eth.com",
-          "https://ethereum.publicnode.com",
+          //"https://api.mycryptoapi.com/eth",
+          //"https://cloudflare-eth.com",
+          //"https://ethereum.publicnode.com",
           //"wss://ethereum.publicnode.com",
-          "https://mainnet.gateway.tenderly.co",
+          //"https://mainnet.gateway.tenderly.co",
           //"wss://mainnet.gateway.tenderly.co",
           //"https://rpc.blocknative.com/boost",
-          "https://rpc.flashbots.net",
+          //"https://rpc.flashbots.net",
           //"https://rpc.flashbots.net/fast",
-          "https://rpc.mevblocker.io",
-          "https://rpc.mevblocker.io/fast",
-          "https://rpc.mevblocker.io/noreverts",
-          "https://rpc.mevblocker.io/fullprivacy"
+          //"https://rpc.mevblocker.io",
+          //"https://rpc.mevblocker.io/fast",
+          //"https://rpc.mevblocker.io/noreverts",
+          //"https://rpc.mevblocker.io/fullprivacy"
         ],
         "features": [{ "name": "EIP155" }, { "name": "EIP1559" }],
         "faucets": [],
@@ -154,10 +155,11 @@ export const chain_info: Record<number,any> = {
         "name": "OP Mainnet",
         "chain": "ETH",
         "rpc": [
-          "https://mainnet.optimism.io",
-          "https://optimism.publicnode.com",
+          "https://opt-mainnet.g.alchemy.com/v2/LTUd8wMSlbXxWBHpYyFE-WyOh2wud4Hb",
+          //"https://mainnet.optimism.io",
+          //"https://optimism.publicnode.com",
           //"wss://optimism.publicnode.com",
-          "https://optimism.gateway.tenderly.co",
+          //"https://optimism.gateway.tenderly.co",
           //"wss://optimism.gateway.tenderly.co"
         ],
         "faucets": [],
@@ -196,15 +198,16 @@ export const chain_info: Record<number,any> = {
         "chain": "Polygon",
         "icon": "polygon",
         "rpc": [
-          "https://polygon-rpc.com/",
-          "https://rpc-mainnet.matic.network",
-          "https://matic-mainnet.chainstacklabs.com",
-          "https://rpc-mainnet.maticvigil.com",
-          "https://rpc-mainnet.matic.quiknode.pro",
-          "https://matic-mainnet-full-rpc.bwarelabs.com",
-          "https://polygon-bor.publicnode.com",
+          "https://polygon-mainnet.g.alchemy.com/v2/cwgNHMG7HVg1gg_PiN2tZdr27wbW8h9d"
+          //"https://polygon-rpc.com/",
+          //"https://rpc-mainnet.matic.network",
+          //"https://matic-mainnet.chainstacklabs.com",
+          //"https://rpc-mainnet.maticvigil.com",
+          //"https://rpc-mainnet.matic.quiknode.pro",
+          //"https://matic-mainnet-full-rpc.bwarelabs.com",
+          //"https://polygon-bor.publicnode.com",
           //"wss://polygon-bor.publicnode.com",
-          "https://polygon.gateway.tenderly.co",
+          //"https://polygon.gateway.tenderly.co",
           //"wss://polygon.gateway.tenderly.co"
         ],
         "faucets": [],
@@ -237,11 +240,10 @@ export const chain_info: Record<number,any> = {
       "chain": "Polygon",
       "icon": "polygon",
       "rpc": [
-        "https://rpc.ankr.com/polygon_mumbai",
-        "https://rpc.ankr.com/polygon_mumbai",
-        "https://gateway.tenderly.co/public/polygon-mumbai",
-
-
+        //"https://rpc.ankr.com/polygon_mumbai",
+        //"https://rpc.ankr.com/polygon_mumbai",
+        //"https://gateway.tenderly.co/public/polygon-mumbai",
+        "https://polygon-mumbai.g.alchemy.com/v2/g4qVlKDewH8F19bv47GB1Iq3Ca_XxWhN"
       ],
       "faucets": [],
       "nativeCurrency": {
