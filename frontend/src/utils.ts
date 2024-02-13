@@ -5,6 +5,7 @@ import { solidityPackedKeccak256, zeroPadValue } from 'ethers';
 import { sha256 } from '@noble/hashes/sha256';
 import { LRUCache } from 'typescript-lru-cache';
 import { Ref, computed, ref, watch } from 'vue';
+import { JsonRpcProvider } from 'ethers';
 
 export function randomchoice<T>(array:T[]):T {
   return array[Math.floor(Math.random() * array.length)];
@@ -64,7 +65,6 @@ export function computedAsync<T>(getter: () => Promise<T>): Ref<T | undefined> {
 function areBytewiseEqual(a:Uint8Array, b:Uint8Array) {
   return indexedDB.cmp(a, b) === 0;
 }
-
 
 export function decrypt(key:Uint8Array, cipherbytes:Uint8Array) {
   if( cipherbytes.length <= (NonceSize + TagSize) ) {
@@ -142,75 +142,60 @@ export function getMapSlot(holderAddress: string, mappingPosition: number): stri
   );
 }
 
-export abstract class AlchemyClient {
-  static API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
+export async function isERCTokenContract(provider: JsonRpcProvider, address: string): Promise<boolean> {
+  // Apply heuristic based on token function
+  const abi = ["function totalSupply()"];
+  const iface = new Utils.Interface(abi);
+  const totalSupplyData = iface.encodeFunctionData("totalSupply");
 
-  static async isERCTokenContract(network: keyof typeof Network, address: string): Promise<boolean> {
-    const client = new Alchemy({
-      apiKey: this.API_KEY,
-      network: Network[network]
+  try {
+    await provider.call({
+      to: address,
+      data: totalSupplyData, 
     });
-
-    // Apply heuristic based on token function
-    const abi = ["function totalSupply()"];
-    const iface = new Utils.Interface(abi);
-    const totalSupplyData = iface.encodeFunctionData("totalSupply");
-
-    try {
-      await client.core.call({
-        to: address,
-        data: totalSupplyData,
-      })
-    } catch (e) {
-      return false
-    }
-
-    return true;
+  } catch (e) {
+    return false
   }
 
-  static async guessStorageSlots(network: keyof typeof Network, blockHash: string, account: string, holder: string): Promise<number | null> {
-    const client = new Alchemy({
-      apiKey: this.API_KEY,
-      network: Network[network]
-    });
+  return true;
+}
 
-    const abi = ["function balanceOf(address account)"];
-    const iface = new Utils.Interface(abi);
-    const balanceData = iface.encodeFunctionData("balanceOf", [holder]);
+export async function guessStorageSlot(provider: JsonRpcProvider, account: string, holder: string, blockHash = 'latest'): Promise<Object | null> {
+  const abi = ["function balanceOf(address account)"];
+  const iface = new Utils.Interface(abi);
+  const balanceData = iface.encodeFunctionData("balanceOf", [holder]);
 
-    // Get balance for the wallet address in hex format -- usage of eth_call
-    const balanceInHex = await client.core.call({
-      to: account,
-      data: balanceData,
-    });
+  // Get balance for the wallet address in hex format -- usage of eth_call
+  const balanceInHex = await provider.call({
+    to: account,
+    data: balanceData,
+  });
 
-    // Query most likely range of slots
-    for (let i = 0; i < 256; i++) {
-      const result = await client.core.send('eth_getStorageAt', [
-        account,
-        getMapSlot(holder, i),
-        blockHash,
-      ]);
-
-      if (result == balanceInHex && result != '0x0000000000000000000000000000000000000000000000000000000000000000') {
-        return i;
-      }
-    }
-
-    return null;
-  }
-
-  static async fetchStorageProof(network: keyof typeof Network, blockHash: string, address: string, slot: number, holder: string): Promise<GetProofResponse> {
-    const client = new Alchemy({
-      apiKey: this.API_KEY,
-      network: Network[network]
-    });
-
-    // TODO Probably unpack and verify
-    return client.core.send('eth_getProof', [
-      address,
-      getMapSlot(holder, slot),
+  // Query most likely range of slots
+  for (let i = 0; i < 256; i++) {
+    console.log(i)
+    const result = await provider.send('eth_getStorageAt', [
+      account,
+      getMapSlot(holder, i),
       blockHash,
     ]);
+
+    if (result == balanceInHex && result != '0x0000000000000000000000000000000000000000000000000000000000000000') {
+      return {
+        index: i,
+        balance: balanceInHex,
+      };
+    }
   }
+
+  return null;
+}
+
+export async function fetchStorageProof(provider: JsonRpcProvider, blockHash: string, address: string, slot: number, holder: string): Promise<GetProofResponse> {
+  // TODO Probably validate here first
+  return provider.send('eth_getProof', [
+    address,
+    getMapSlot(holder, slot),
+    blockHash,
+  ]);
 }
