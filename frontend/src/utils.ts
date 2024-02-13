@@ -1,11 +1,12 @@
 import type { GetProofResponse } from './types';
 import { Alchemy, Network, Utils } from 'alchemy-sdk';
 import { AEAD, NonceSize, KeySize, TagSize } from '@oasisprotocol/deoxysii';
-import { solidityPackedKeccak256, zeroPadValue } from 'ethers';
+import { ZeroHash, solidityPackedKeccak256, zeroPadValue } from 'ethers';
 import { sha256 } from '@noble/hashes/sha256';
 import { LRUCache } from 'typescript-lru-cache';
 import { Ref, computed, ref, watch } from 'vue';
 import { JsonRpcProvider } from 'ethers';
+import { getBigInt } from 'ethers';
 
 export function randomchoice<T>(array:T[]):T {
   return array[Math.floor(Math.random() * array.length)];
@@ -151,7 +152,7 @@ export async function isERCTokenContract(provider: JsonRpcProvider, address: str
   try {
     await provider.call({
       to: address,
-      data: totalSupplyData, 
+      data: totalSupplyData,
     });
   } catch (e) {
     return false
@@ -160,7 +161,7 @@ export async function isERCTokenContract(provider: JsonRpcProvider, address: str
   return true;
 }
 
-export async function guessStorageSlot(provider: JsonRpcProvider, account: string, holder: string, blockHash = 'latest'): Promise<Object | null> {
+export async function guessStorageSlot(provider: JsonRpcProvider, account: string, holder: string, blockHash = 'latest') {
   const abi = ["function balanceOf(address account)"];
   const iface = new Utils.Interface(abi);
   const balanceData = iface.encodeFunctionData("balanceOf", [holder]);
@@ -171,6 +172,8 @@ export async function guessStorageSlot(provider: JsonRpcProvider, account: strin
     data: balanceData,
   });
 
+  // TODO: shortlist most frequently used slots, then do brute force
+
   // Query most likely range of slots
   for (let i = 0; i < 256; i++) {
     console.log(i)
@@ -180,15 +183,13 @@ export async function guessStorageSlot(provider: JsonRpcProvider, account: strin
       blockHash,
     ]);
 
-    if (result == balanceInHex && result != '0x0000000000000000000000000000000000000000000000000000000000000000') {
+    if (result == balanceInHex && result != ZeroHash) {
       return {
         index: i,
-        balance: balanceInHex,
+        balance: getBigInt(balanceInHex),
       };
     }
   }
-
-  return null;
 }
 
 // export async function fetchStorageProof(provider: JsonRpcProvider, blockHash: string, address: string, slot: number, holder: string): Promise<GetProofResponse> {
