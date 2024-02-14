@@ -1,5 +1,5 @@
 import { Contract, ContractRunner, JsonRpcProvider, getBigInt, toBeHex,
-  ZeroHash, solidityPackedKeccak256, zeroPadValue, Typed
+  ZeroHash, solidityPackedKeccak256, zeroPadValue, Typed, formatUnits
 } from "ethers"
 
 import { randomchoice } from './utils'
@@ -328,18 +328,27 @@ export async function isERCTokenContract(provider: JsonRpcProvider, address: str
   return true;
 }
 
-export async function guessStorageSlot(provider: JsonRpcProvider, account: string, holder: string, blockHash = 'latest'): Promise<Object | null> {
-  const abi = ["function balanceOf(address account)"];
+export async function guessStorageSlot(provider: JsonRpcProvider, account: string, holder: string, blockHash = 'latest'): Promise<{index:number,balance:bigint,balanceDecimal:string} | null> {
+  const tokenDetails = await tokenDetailsFromProvider(account, provider);
+  const abi = ["function balanceOf(address account) view returns (uint256)"];
   const c = new Contract(account, abi, provider);
-  const balance = await c.balanceOf(holder);
+  const balance = await c.balanceOf(holder) as bigint;
+  console.log('Balance is', typeof balance, balance);
   const balanceInHex = toBeHex(balance, 32);
 
-  // TODO: shortlist most frequently used slots, then do brute force
-  // Aragorn: 0x65
-  // Compund?: 0x1
+  // shortlist most frequently used slots, then do brute force
+  let shortlist = [
+    0x65, // Aragon
+    0x1   // Compound
+  ];
+  for( let i = 0; i < 256; i++ ) {
+    if( shortlist.includes(i) ) {
+      continue;
+    }
+  }
 
   // Query most likely range of slots
-  for (let i = 0; i < 256; i++) {
+  for( const i of shortlist ) {
     console.log(i)
     const result = await provider.send('eth_getStorageAt', [
       account,
@@ -350,7 +359,8 @@ export async function guessStorageSlot(provider: JsonRpcProvider, account: strin
     if (result == balanceInHex && result != ZeroHash) {
       return {
         index: i,
-        balance: getBigInt(balanceInHex),
+        balance: balance,
+        balanceDecimal: formatUnits(balance, tokenDetails.decimals)
       };
     }
   }

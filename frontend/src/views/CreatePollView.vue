@@ -134,9 +134,17 @@ const xchain_rpc = computed<JsonRpcProvider|undefined>(() => {
 const xchain_autoconfig_status = ref('');
 
 watch(xchain_addr, async (xchain_addr) => {
-  const addr = toValue(xchain_addr);
-  const rpc = toValue(xchain_rpc);
+  let addr;
+  try {
+    addr = getAddress(toValue(xchain_addr));
+    console.log('Got addr', addr);
+  }
+  catch(e) {
+    xchain_addr_valid.value = false;
+    return;
+  }
 
+  const rpc = toValue(xchain_rpc);
   if (addr && rpc && await isERCTokenContract(rpc, addr)) {
     console.log('watched');
     xchain_addr_valid.value = true;
@@ -147,11 +155,12 @@ watch(xchain_addr, async (xchain_addr) => {
 
 watch(xchain_holder, async (xchain_holder) => {
   const rpc = toValue(xchain_rpc);
-  if( rpc ) {
+  if( rpc && toValue(xchain_addr_valid) ) {
     const addr = toValue(xchain_addr);
     const holder = toValue(xchain_holder);
     const slot = await guessStorageSlot(rpc, addr, holder);
     if (slot) {
+      console.log('Slot is', slot);
       xchain_holder_valid.value = true;
       xchain_holder_balance.value = slot.balance;
       xchain_slot.value = slot.index;
