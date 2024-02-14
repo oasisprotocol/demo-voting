@@ -16,7 +16,7 @@ export enum Network {
   SapphireTestnet = 0x5aff,
   SapphireMainnet = 0x5afe,
   SapphireLocalnet = 0x5afd,
-  PolygonMumbai = 13881,
+  PolygonMumbai = 0x13381,
   Local = 1337,
 
   FromConfig = parseInt(import.meta.env.VITE_NETWORK),
