@@ -339,10 +339,11 @@ export async function guessStorageSlot(provider: JsonRpcProvider, account: strin
   // shortlist most frequently used slots, then do brute force
   let shortlist = [
     0x65, // Aragon Test Xi (Mumbai) 0xb707dfe506ce7e10374c14de6891da3059d989b2
-    0x1   // Tally Compound (Ethereum) 0xc00e94Cb662C3520282E6f5717214004A7f26888
+    0x1,   // Tally Compound (Ethereum) 0xc00e94Cb662C3520282E6f5717214004A7f26888
+    0x33  // DAO Haus Test Xi (Polygon) 0x4d0a8159B88139341c1d1078C8A97ff6001dda91
   ];
 
-  let restOfList = [...Array(256).keys()].filter(i => { !shortlist.includes(i) });
+  let restOfList = [...Array(256).keys()].filter(i => !shortlist.includes(i));
 
   // Query most likely range of slots
   for( const i of shortlist.concat(restOfList) ) {
