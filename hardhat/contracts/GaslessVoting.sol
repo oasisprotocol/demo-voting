@@ -381,7 +381,8 @@ contract GaslessVoting is IERC165, IGaslessVoter
                                 dao.proxy.selector,
                                 in_request.voter,
                                 in_request.proposalId,
-                                in_request.choiceId)),
+                                in_request.choiceId,
+                                in_data)),
                         ""))
             }));
     }

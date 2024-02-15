@@ -63,15 +63,17 @@ contract TokenHolderACL is IPollACL
     }
 
     /// Does user hold a non-zero balance of the token required to vote?
-    function canVoteOnPoll(address in_dao, bytes32 in_proposalId, address in_user, bytes calldata)
+    function canVoteOnPoll(address in_dao, bytes32 in_proposalId, address in_user, bytes calldata in_data)
         external view
         returns(uint)
     {
+        require( in_data.length == 0, "DATA!" );
+
         bytes32 pid = keccak256(abi.encode(in_dao, in_proposalId));
 
         PollSettings storage poll = polls[pid];
 
-        require( poll.owner != address(0) );
+        require( poll.owner != address(0), "404!" );
 
         ITokenWithBalance token = ITokenWithBalance(poll.token);
 
