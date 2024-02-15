@@ -1,6 +1,7 @@
 import { task } from 'hardhat/config';
 import { existsSync, promises as fs } from 'fs';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
+import { parseEther } from 'ethers';
 
 
 function maketee(filename?:string) {
@@ -122,6 +123,17 @@ task('deploy')
 
     await deploy_xchain(hre, tee);
     const { addr_AllowAllACL } = await deploy_acls(hre, tee);
+
+    const factory_TestToken = await hre.ethers.getContractFactory('TestToken');
+    const contract_TestToken = await factory_TestToken.deploy();
+    await tee('');
+    await tee(`# TestToken tx ${contract_TestToken.deploymentTransaction()?.hash}`);
+    await contract_TestToken.waitForDeployment();
+    await tee(`VITE_CONTRACT_TESTTOKEN=${await contract_TestToken.getAddress()}`);
+
+    const signers = await hre.ethers.getSigners();
+    const mint_tx = await contract_TestToken.mint(signers[0].address, parseEther('5'));
+    await mint_tx.wait()
 
     // Deploy GaslessVoting proxy
     const factory_GaslessVoting = await hre.ethers.getContractFactory('GaslessVoting');

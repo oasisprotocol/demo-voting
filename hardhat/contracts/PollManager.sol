@@ -271,9 +271,11 @@ contract PollManager is IERC165, IPollManager {
         {
             // Modify the vote count in constant time
             uint z = ballot.voteCounts[i];
+            uint a = bool2int(i == existingChoice) * existingWeight;
+            uint b = bool2int(i == in_choiceId) * weight;
             z ^= xorMask;
-            z -= bool2int(i == existingChoice) * weight;
-            z += bool2int(i == in_choiceId) * weight;
+            z -= a;
+            z += b;
             z ^= nextXorMask;
 
             ballot.voteCounts[i] = z;
