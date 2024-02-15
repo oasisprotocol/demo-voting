@@ -258,9 +258,10 @@ onMounted(async () => {
   if ('xchain' in ipfsParams.acl.options) {
     const xchain = (ipfsParams.acl.options as AclOptionsXchain).xchain;
     const provider = xchainRPC(xchain.chainId);
-    const signer_addr = await eth.signer?.getAddress();
+    const signer_addr = '0x6d80113e533a2c0fe82eabd35f1875dcea89ea97'; //await eth.signer?.getAddress();
     if( signer_addr ) {
       const proof = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
+      console.log('Proof is', proof);
       canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof);
     }
   }

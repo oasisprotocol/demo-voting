@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import hre, { ethers } from "hardhat";
-import { AbiCoder, BytesLike, EventLog, ZeroHash, decodeRlp, encodeRlp, getBytes, parseEther } from "ethers";
+import { AbiCoder, BytesLike, EventLog, ZeroHash, decodeRlp, encodeRlp, getBigInt, getBytes, parseEther, solidityPackedKeccak256, zeroPadValue } from "ethers";
 
 import { PollManager, TokenHolderACL, AllowAllACL, VoterAllowListACL, GaslessVoting, StorageProofACL, HeaderCache, StorageProof, AccountCache } from "../src/contracts";
 import { BLOCK_HEADERS, WMATIC_BALANCE } from "./exampleproofs";
@@ -166,9 +166,6 @@ describe("PollManager", function () {
       ]
     ]));
 
-    console.log('headerRlpBytes', headerRlpBytes);
-    console.log('rlpAccountProof', rlpAccountProof);
-
     const propId = await addProposal(pm, {
       ipfsHash: "0xabcdblahblahstuff",
       ipfsSecret: ZeroHash,
@@ -177,8 +174,6 @@ describe("PollManager", function () {
       closeTimestamp: 0n,
       acl: await acl_storageproof.getAddress()
     }, aclParams);
-
-    console.log('Account:', await accountCache.get(blockHash, WMATIC_BALANCE.proof.address));
 
     // Impersonate
     const [fundedSigner] = await ethers.getSigners();

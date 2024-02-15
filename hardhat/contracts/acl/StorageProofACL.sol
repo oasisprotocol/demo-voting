@@ -106,7 +106,7 @@ contract StorageProofACL is IPollACL
             settings.block_hash,
             settings.account_address,
             settings.slot,
-            bytes32(bytes20(in_user)),
+            in_user,
             in_rlpStorageProof
         ));
     }
