@@ -13,7 +13,8 @@ import { usePollManager, usePollManagerWithSigner } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
 import type { AclOptions, AclOptionsAllowAll, AclOptionsAllowList, AclOptionsToken, AclOptionsXchain, Poll } from '../types';
 import { computedAsync } from '../utils';
-import { guessStorageSlot, isERCTokenContract, tokenDetailsFromProvider, xchain_ChainNamesToChainId, xchainRPC } from "../xchain";
+import { ETHEREUMJS_POLYGON_BLOCK_OPTIONS, fetchAccountProof, getBlockHeaderRLP, guessStorageSlot, isERCTokenContract, tokenDetailsFromProvider, xchain_ChainNamesToChainId, xchainRPC } from "../xchain";
+import { xchain } from 'node_modules/@oasisprotocol/demo-voting-contracts/lib/esm/contracts/contracts';
 
 const eth = useEthereumStore();
 const dao = usePollManager();
@@ -256,7 +257,7 @@ async function createPoll(e: Event): Promise<void> {
 }
 
 /// Returns the `data` parameter used to initialize the ACL when creating a poll
-function getACLOptions(): [string,AclOptions] {
+async function getACLOptions(): Promise<[string,AclOptions]> {
   const acl = toValue(chosenPollACL);
   const abi = AbiCoder.defaultAbiCoder();
   if( acl == acl_allowAll )
@@ -298,21 +299,33 @@ function getACLOptions(): [string,AclOptions] {
   }
 
   if( acl == acl_xchain ) {
+    const chainId = toValue(xchain_chainId);
+    const rpc = xchainRPC(chainId);
+    const blockHash = toValue(xchain_hash);
+    const contractAddress = toValue(xchain_addr);
+    const headerRlpBytes = await getBlockHeaderRLP(rpc, blockHash, ETHEREUMJS_POLYGON_BLOCK_OPTIONS);
+    const rlpAccountProof = await fetchAccountProof(rpc, blockHash, contractAddress);
+    console.log('headerRlpBytes', headerRlpBytes);
+    console.log('rlpAccountProof', rlpAccountProof);
     return [
-      abi.encode(["tuple(bytes32,address,uint256)"], [
-        [
-          toValue(xchain_hash),
-          toValue(xchain_addr),
-          toValue(xchain_slot)
+      abi.encode(["tuple(tuple(bytes32,address,uint256),bytes,bytes)"], [
+        [ // PollCreationOptions
+          [ // PollSettings
+            blockHash,
+            contractAddress,
+            toValue(xchain_slot)
+          ],
+          headerRlpBytes,
+          rlpAccountProof
         ]
       ]),
       {
         address: acl,
         options: {
           xchain: {
-            chainId: toValue(xchain_chainId),
-            blockHash: toValue(xchain_hash),
-            address: toValue(xchain_addr),
+            chainId,
+            blockHash,
+            address: contractAddress,
             slot: toValue(xchain_slot)!
           }
         }
@@ -326,7 +339,7 @@ function getACLOptions(): [string,AclOptions] {
 async function doCreatePoll(): Promise<string> {
   if (errors.value.length > 0) return '';
 
-  const [aclData, aclOptions] = getACLOptions();
+  const [aclData, aclOptions] = await getACLOptions();
 
   const poll: Poll = {
     creator: eth.address!,

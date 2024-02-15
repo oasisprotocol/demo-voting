@@ -260,9 +260,7 @@ onMounted(async () => {
     const provider = xchainRPC(xchain.chainId);
     const signer_addr = await eth.signer?.getAddress();
     if( signer_addr ) {
-      const response = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
-      console.log('Response is', response);
-      const proof = encodeRlp(response.storageProof[0].proof.map(decodeRlp));
+      const proof = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
       canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof);
     }
   }
@@ -337,7 +335,7 @@ onMounted(async () => {
           <AppButton
             type="submit"
             variant="primary"
-            :disabled="!canVote || isLoading"
+            :disabled="!canVote || isLoading || isClosing"
             @click="vote"
           >
             <span v-if="isLoading">Submitting Vote…</span>

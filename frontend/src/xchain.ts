@@ -1,9 +1,11 @@
 import { Contract, ContractRunner, JsonRpcProvider, getBigInt, toBeHex,
-  ZeroHash, solidityPackedKeccak256, zeroPadValue, Typed, formatUnits
+  ZeroHash, solidityPackedKeccak256, zeroPadValue, Typed, formatUnits, encodeRlp, decodeRlp, BytesLike, hexlify
 } from "ethers"
 
 import { randomchoice } from './utils'
 import { GetProofResponse } from "./types";
+import { Block, BlockHeader, BlockOptions, HeaderData, JsonRpcBlock } from "@ethereumjs/block";
+import { Common, CustomChain } from "@ethereumjs/common";
 
 export const chain_info: Record<number,any> = {
     1: {
@@ -365,11 +367,33 @@ export async function guessStorageSlot(provider: JsonRpcProvider, account: strin
   return null;
 }
 
-export async function fetchStorageProof(provider: JsonRpcProvider, blockHash: string, address: string, slot: number, holder: string): Promise<GetProofResponse> {
+export async function fetchStorageProof(provider: JsonRpcProvider, blockHash: string, address: string, slot: number, holder: string): Promise<BytesLike> {
   // TODO Probably unpack and verify
-  return provider.send('eth_getProof', [
+  const response = await provider.send('eth_getProof', [
     address,
     [getMapSlot(holder, slot)],
     blockHash,
-  ]);
+  ]) as GetProofResponse;
+  return encodeRlp(response.storageProof[0].proof.map(decodeRlp));
+}
+
+export async function fetchAccountProof(provider: JsonRpcProvider, blockHash: string, address: string): Promise<BytesLike> {
+  const response = await provider.send('eth_getProof', [
+    address,
+    [],
+    blockHash,
+  ]) as GetProofResponse;
+  return encodeRlp(response.accountProof.map(decodeRlp));
+}
+
+export const ETHEREUMJS_POLYGON_BLOCK_OPTIONS = {
+  common: Common.custom(CustomChain.PolygonMainnet, {hardfork: 'london'}),
+  skipConsensusFormatValidation: true
+} as BlockOptions;
+
+export async function getBlockHeaderRLP(provider: JsonRpcProvider, blockHash: string, opts: BlockOptions) {
+  const result = await provider.send('eth_getBlockByHash', [blockHash, false]) as JsonRpcBlock;
+  //const h = BlockHeader.fromHeaderData(x, opts);
+  const b = Block.fromRPC(result, [], opts);
+  return hexlify(b.header.serialize());
 }

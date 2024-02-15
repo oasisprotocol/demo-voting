@@ -1,8 +1,9 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { AbiCoder, BytesLike, EventLog, ZeroAddress, ZeroHash, getBytes, parseEther } from "ethers";
+import hre, { ethers } from "hardhat";
+import { AbiCoder, BytesLike, EventLog, ZeroHash, decodeRlp, encodeRlp, getBytes, parseEther } from "ethers";
 
-import { PollManager, TokenHolderACL, AllowAllACL, VoterAllowListACL, GaslessVoting } from "../src/contracts";
+import { PollManager, TokenHolderACL, AllowAllACL, VoterAllowListACL, GaslessVoting, StorageProofACL, HeaderCache, StorageProof, AccountCache } from "../src/contracts";
+import { BLOCK_HEADERS, WMATIC_BALANCE } from "./exampleproofs";
 
 async function addProposal(dao:PollManager, proposal:PollManager.ProposalParamsStruct, aclData?:Uint8Array) {
   const tx = await dao.create(proposal, aclData ?? new Uint8Array([]));
@@ -29,6 +30,10 @@ describe("PollManager", function () {
   let acl_tokenholder : TokenHolderACL;
   let acl_allowall : AllowAllACL;
   let acl_voterlist : VoterAllowListACL;
+  let acl_storageproof : StorageProofACL;
+  let storageProof: StorageProof;
+  let accountCache: AccountCache;
+  let headerCache: HeaderCache;
   let pm : PollManager;
   let gv : GaslessVoting;
   let TEST_PROPOSALS: PollManager.ProposalParamsStruct[];
@@ -42,6 +47,18 @@ describe("PollManager", function () {
 
     acl_voterlist = await (await ethers.getContractFactory('VoterAllowListACL')).deploy()
     await acl_voterlist.waitForDeployment();
+
+    headerCache = await (await ethers.getContractFactory('HeaderCache')).deploy();
+    await headerCache.waitForDeployment();
+
+    accountCache = await (await ethers.getContractFactory('AccountCache')).deploy(await headerCache.getAddress());
+    await accountCache.waitForDeployment();
+
+    storageProof = await (await ethers.getContractFactory('StorageProof')).deploy(await accountCache.getAddress());
+    await storageProof.waitForDeployment();
+
+    acl_storageproof = await (await ethers.getContractFactory('StorageProofACL')).deploy(await storageProof.getAddress());
+    await acl_storageproof.waitForDeployment();
 
     gv = await (await ethers.getContractFactory('GaslessVoting')).deploy()
     await gv.waitForDeployment();
@@ -132,6 +149,52 @@ describe("PollManager", function () {
     catch( e:any ) {
       expect(true).eq(true);
     }
+  });
+
+  it('Test StorageProof ACL', async function () {
+    const blockHash = '0xcb6242f4219a09f7ef7dfd51f7594b23d2a6ad1e06b8b99a55fef4ec82cf61af';
+    const abi = AbiCoder.defaultAbiCoder();
+    const headerRlpBytes = BLOCK_HEADERS[blockHash];
+    const rlpAccountProof = encodeRlp(WMATIC_BALANCE.proof.accountProof.map(decodeRlp));
+    const aclParams = getBytes(abi.encode(["tuple(tuple(bytes32,address,uint256),bytes,bytes)"], [
+      [ // PollCreationOptions
+        [ // PollSettings
+          blockHash, WMATIC_BALANCE.proof.address, 3
+        ],
+        headerRlpBytes,
+        rlpAccountProof
+      ]
+    ]));
+
+    console.log('headerRlpBytes', headerRlpBytes);
+    console.log('rlpAccountProof', rlpAccountProof);
+
+    const propId = await addProposal(pm, {
+      ipfsHash: "0xabcdblahblahstuff",
+      ipfsSecret: ZeroHash,
+      numChoices: 3n,
+      publishVotes: false,
+      closeTimestamp: 0n,
+      acl: await acl_storageproof.getAddress()
+    }, aclParams);
+
+    console.log('Account:', await accountCache.get(blockHash, WMATIC_BALANCE.proof.address));
+
+    // Impersonate
+    const [fundedSigner] = await ethers.getSigners();
+    const impersonatedAddr = WMATIC_BALANCE.slots[0].key;
+    const fundTx = await fundedSigner.sendTransaction({
+      to: impersonatedAddr,
+      value: parseEther("1"),
+      data: "0x"
+    });
+    await fundTx.wait();
+
+    const voteProof = encodeRlp(WMATIC_BALANCE.proof.storageProof[0].proof.map(decodeRlp));
+    const signer = await ethers.getImpersonatedSigner(impersonatedAddr);
+    const newPm = pm.connect(signer);
+    const vote_tx = await newPm.vote(propId, 1, voteProof);
+    await vote_tx.wait();
   });
 
   /*
