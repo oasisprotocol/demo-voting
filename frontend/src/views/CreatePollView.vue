@@ -628,7 +628,7 @@ async function doCreatePoll(): Promise<string> {
             <div class="mb-5 pl-5" v-if="xchain_holder_valid">
               <label for="xchain-slot">
                 Storage Slot:
-                  {{ (xchain_holder_balance??0) > 0 ? xchain_holder_balance : '' }}
+                  {{ (xchain_holder_balance??0) > 0 ? `has a balance of ${xchain_holder_balance }` : '' }}
               </label>
               <input type="text" id="xchain-slot" v-model="xchain_slot" />
             </div><!-- / X-Chain Slot -->
