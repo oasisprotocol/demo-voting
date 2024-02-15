@@ -5,6 +5,8 @@ pragma solidity ^0.8.0;
 import { IPollACL } from "../../interfaces/IPollACL.sol";
 import { IPollManagerACL } from "../../interfaces/IPollManagerACL.sol";
 import { StorageProof } from "../xchain/StorageProof.sol";
+import { AccountCache } from "../xchain/AccountCache.sol";
+import { HeaderCache } from "../xchain/HeaderCache.sol";
 
 // Restrict access to a poll using a storage proof for vote weight
 contract StorageProofACL is IPollACL
@@ -13,6 +15,12 @@ contract StorageProofACL is IPollACL
         bytes32 block_hash;
         address account_address;
         uint256 slot;
+    }
+
+    struct PollCreationOptions {
+        PollSettings settings;
+        bytes headerRlpBytes;
+        bytes rlpAccountProof;
     }
 
     mapping(bytes32 => PollSettings) private s_polls;
@@ -45,7 +53,27 @@ contract StorageProofACL is IPollACL
 
         require( s_polls[id].block_hash == 0 );
 
-        s_polls[id] = abi.decode(in_data, (PollSettings));
+        PollCreationOptions memory options = abi.decode(in_data, (PollCreationOptions));
+
+        s_polls[id] = options.settings;
+
+        AccountCache accountCache = storageProof.accountCache();
+
+        HeaderCache headerCache = accountCache.headerCache();
+
+        // Prime the header cache
+        if( options.headerRlpBytes.length > 0 ) {
+            if( ! headerCache.exists(options.settings.block_hash) ) {
+                headerCache.add(options.headerRlpBytes);
+            }
+        }
+
+        // Prime the account cache
+        if( options.rlpAccountProof.length > 0 ) {
+            if( ! accountCache.exists(options.settings.block_hash, options.settings.account_address) ) {
+                accountCache.add(options.settings.block_hash, options.settings.account_address, options.rlpAccountProof);
+            }
+        }
     }
 
     function onPollClosed(bytes32 in_proposalId)

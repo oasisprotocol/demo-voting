@@ -88,9 +88,9 @@ const acl_allowList_addresses = computed(() => {
 });
 
 // Sapphire token holder ACL stuff
-const holder_addr = ref<string>('');
-const holder_error = computed<string|undefined>(() => {
-  const v = toValue(holder_addr);
+const token_addr = ref<string>('');
+const token_error = computed<string|undefined>(() => {
+  const v = toValue(token_addr);
   if( v ) {
     try {
         getAddress(v);
@@ -102,14 +102,15 @@ const holder_error = computed<string|undefined>(() => {
       }
   }
 });
-const holder_valid = computed(()=> toValue(holder_error) === undefined);
-const holder_details = computedAsync(async () => {
-  if( ! toValue(holder_valid) ) {
+const token_valid = computed(()=> {
+  return toValue(token_addr) && toValue(token_error) === undefined;
+});
+const token_details = computedAsync(async () => {
+  if( ! toValue(token_valid) ) {
     return;
   }
-  const addr = toValue(holder_addr);
+  const addr = toValue(token_addr);
   if( addr ) {
-    console.log('Calculating computed holder details!');
     return await tokenDetailsFromProvider(addr, eth.provider);
   }
 });
@@ -124,14 +125,12 @@ const xchain_holder_balance = ref<bigint>();
 const xchain_holder_valid = ref<boolean>(false);
 const xchain_slot = ref<number>();
 const xchain_slot_valid = ref<boolean>(false);
-const xchain_token = ref<string>('');
 const xchain_rpc = computed<JsonRpcProvider|undefined>(() => {
   const chainId = toValue(xchain_chainId);
   if( chainId ) {
     return xchainRPC(chainId);
   }
 });
-const xchain_autoconfig_status = ref('');
 
 watch(xchain_addr, async (xchain_addr) => {
   let addr;
@@ -273,7 +272,7 @@ function getACLOptions(): [string,AclOptions] {
 
   if( acl == acl_tokenHolder )
   {
-    const addr = toValue(holder_addr);
+    const addr = toValue(token_addr);
     return [
       abi.encode(["address"], [addr]),
       {
@@ -546,16 +545,20 @@ async function doCreatePoll(): Promise<string> {
               <label for="holder-addr">
                 Token Address:
               </label>
-              <input type="text" id="holder-addr" v-model="holder_addr" />
+              <input type="text" id="holder-addr" v-model="token_addr" />
+
+              <!-- TODO: show token details -->
+              <div v-if="token_error" class="mt-1 text-red-500">
+                {{ token_error }}
+              </div>
+              <div v-if="token_valid" class="text-gray-500 mt-1">
+                <span v-if="token_details">
+                  {{ token_details?.name }}
+                  ({{ token_details?.symbol }})
+                </span>
+              </div>
             </div>
-            <!-- TODO: show token details -->
-            <div v-if="holder_error">
-              {{ holder_error }}
-            </div>
-            <div v-if="holder_valid">
-                Valid!
-                {{ holder_details }}
-            </div>
+
           </div><!-- / Token Holder ACL-->
 
           <div v-if="toValue(chosenPollACL) == acl_allowList">

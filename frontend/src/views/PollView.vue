@@ -182,7 +182,7 @@ async function doVote(): Promise<void> {
         tx_hash = `\n\nFalied tx: ${receipt.hash}`;
       }
       console.log('Receipt is', receipt);
-      const result = confirm(`No gas left in subsidy account, submit from your own account? ${tx_hash}`);
+      const result = confirm(`Error submitting from subsidy account, submit from your own account? ${tx_hash}`);
       if( result ) {
         submitAndPay = true;
       }
@@ -261,9 +261,14 @@ onMounted(async () => {
     const signer_addr = await eth.signer?.getAddress();
     if( signer_addr ) {
       const response = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
+      console.log('Response is', response);
       const proof = encodeRlp(response.storageProof[0].proof.map(decodeRlp));
       canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof);
     }
+  }
+  else if( 'token' in ipfsParams.acl.options ) {
+    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
+    //const x = ipfsParams.acl.options.token;
   }
 
   // Retrieve gasless voting addresses & balances

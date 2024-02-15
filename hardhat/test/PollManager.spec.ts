@@ -1,11 +1,11 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { BytesLike, EventLog } from "ethers";
+import { AbiCoder, BytesLike, EventLog, ZeroAddress, ZeroHash, getBytes, parseEther } from "ethers";
 
 import { PollManager, TokenHolderACL, AllowAllACL, VoterAllowListACL, GaslessVoting } from "../src/contracts";
 
-async function addProposal(dao:PollManager, proposal:PollManager.ProposalParamsStruct) {
-  const tx = await dao.create(proposal, new Uint8Array([]));
+async function addProposal(dao:PollManager, proposal:PollManager.ProposalParamsStruct, aclData?:Uint8Array) {
+  const tx = await dao.create(proposal, aclData ?? new Uint8Array([]));
   const receipt = await tx.wait();
   expect(receipt!.logs).to.not.be.undefined;
   const createEvent = receipt!.logs.find(event => (event as EventLog).fragment.name === 'ProposalCreated') as EventLog;
@@ -54,8 +54,8 @@ describe("PollManager", function () {
     await pm.waitForDeployment();
 
     TEST_PROPOSALS = [
-      {ipfsHash: "0xabcd", numChoices: 3n, publishVotes: true, closeTimestamp: 0n, acl: acl_allowall_addr},
-      {ipfsHash: "0xdef0", numChoices: 3n, publishVotes: true, closeTimestamp: 0n, acl: acl_allowall_addr},
+      {ipfsHash: "0xabcd", ipfsSecret: ZeroHash, numChoices: 3n, publishVotes: true, closeTimestamp: 0n, acl: acl_allowall_addr},
+      {ipfsHash: "0xdef0", ipfsSecret: ZeroHash, numChoices: 3n, publishVotes: true, closeTimestamp: 0n, acl: acl_allowall_addr},
     ]
   });
 
@@ -92,7 +92,46 @@ describe("PollManager", function () {
 
     // Then verify that when we close proposals
     // They get added to the top of the 'past proposals' list
+  });
 
+  it('Test TokenACL', async function () {
+    const factory_TestToken = await ethers.getContractFactory('TestToken');
+    const contract_TestToken = await factory_TestToken.deploy();
+    contract_TestToken.waitForDeployment();
+
+    const signers = await ethers.getSigners();
+    const mint_tx = await contract_TestToken.mint(signers[0].address, parseEther('1'));
+    await mint_tx.wait();
+
+    const abi = AbiCoder.defaultAbiCoder();
+    const aclParams = getBytes(abi.encode(["address"], [await contract_TestToken.getAddress()]));
+
+    const propId = await addProposal(pm, {
+      ipfsHash: "0xabcdblahblah",
+      ipfsSecret: ZeroHash,
+      numChoices: 3n,
+      publishVotes: false,
+      closeTimestamp: 0n,
+      acl: await acl_tokenholder.getAddress()
+    }, aclParams);
+
+    // We should be able to vote, because we have the token
+    const vote_tx = await pm.vote(propId, 1, new Uint8Array([]));
+    await vote_tx.wait();
+
+    // Now lets burn our tokens, and verify we can't vote
+    const burn_tx = await contract_TestToken.burn(await contract_TestToken.balanceOf(signers[0].address));
+    await burn_tx.wait();
+    expect(await contract_TestToken.balanceOf(signers[0].address)).eq(0n);
+
+    try {
+      const badVote_tx = await pm.vote(propId, 1, new Uint8Array([]));
+      await badVote_tx.wait();
+      expect(false).eq(false);
+    }
+    catch( e:any ) {
+      expect(true).eq(true);
+    }
   });
 
   /*
