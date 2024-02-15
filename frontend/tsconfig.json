@@ -6,6 +6,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
+    "target": "es2020",
     "types": ["node", "jest"],
     "verbatimModuleSyntax": false,
   },
