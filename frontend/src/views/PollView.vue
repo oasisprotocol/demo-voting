@@ -258,7 +258,7 @@ onMounted(async () => {
   if ('xchain' in ipfsParams.acl.options) {
     const xchain = (ipfsParams.acl.options as AclOptionsXchain).xchain;
     const provider = xchainRPC(xchain.chainId);
-    const signer_addr = '0x6d80113e533a2c0fe82eabd35f1875dcea89ea97'; //await eth.signer?.getAddress();
+    const signer_addr = await eth.signer?.getAddress();
     if( signer_addr ) {
       const proof = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
       console.log('Proof is', proof);
@@ -275,7 +275,12 @@ onMounted(async () => {
   const addrsBalances = await gv.listAddresses(await toValue(dao).getAddress(), proposalId);
   gvAddrs.value = addrsBalances.out_addrs;
   gvBalances.value = addrsBalances.out_balances;
-  gvTotalBalance.value = gvBalances.value.reduce((a,b) => a + b);
+  if( addrsBalances.out_balances.length > 0 ) {
+    gvTotalBalance.value = gvBalances.value.reduce((a,b) => a + b);
+  }
+  else {
+    gvTotalBalance.value = 0n;
+  }
   if( toValue(gvTotalBalance) > 0n ) {
     console.log('Gasless voting available', formatEther(toValue(gvTotalBalance)), 'ROSE balance, addrs:', gvAddrs.value.join(', '));
   }
