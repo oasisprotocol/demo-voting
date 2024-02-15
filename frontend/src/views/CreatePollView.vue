@@ -14,7 +14,6 @@ import { useEthereumStore } from '../stores/ethereum';
 import type { AclOptions, AclOptionsAllowAll, AclOptionsAllowList, AclOptionsToken, AclOptionsXchain, Poll } from '../types';
 import { computedAsync } from '../utils';
 import { ETHEREUMJS_POLYGON_BLOCK_OPTIONS, fetchAccountProof, getBlockHeaderRLP, guessStorageSlot, isERCTokenContract, tokenDetailsFromProvider, xchain_ChainNamesToChainId, xchainRPC } from "../xchain";
-import { xchain } from 'node_modules/@oasisprotocol/demo-voting-contracts/lib/esm/contracts/contracts';
 
 const eth = useEthereumStore();
 const dao = usePollManager();
