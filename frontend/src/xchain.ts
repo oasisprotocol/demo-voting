@@ -338,18 +338,14 @@ export async function guessStorageSlot(provider: JsonRpcProvider, account: strin
 
   // shortlist most frequently used slots, then do brute force
   let shortlist = [
-    0x65, // Aragon
-    0x1   // Compound
+    0x65, // Aragon Test Xi (Mumbai) 0xb707dfe506ce7e10374c14de6891da3059d989b2
+    0x1   // Tally Compound (Ethereum) 0xc00e94Cb662C3520282E6f5717214004A7f26888
   ];
-  for( let i = 0; i < 256; i++ ) {
-    if( shortlist.includes(i) ) {
-      continue;
-    }
-  }
+
+  let restOfList = [...Array(256).keys()].filter(i => { !shortlist.includes(i) });
 
   // Query most likely range of slots
-  for( const i of shortlist ) {
-    console.log(i)
+  for( const i of shortlist.concat(restOfList) ) {
     const result = await provider.send('eth_getStorageAt', [
       account,
       getMapSlot(holder, i),
@@ -359,7 +355,7 @@ export async function guessStorageSlot(provider: JsonRpcProvider, account: strin
     if (result == balanceInHex && result != ZeroHash) {
       return {
         index: i,
-        balance: balance,
+        balance,
         balanceDecimal: formatUnits(balance, tokenDetails.decimals)
       };
     }
