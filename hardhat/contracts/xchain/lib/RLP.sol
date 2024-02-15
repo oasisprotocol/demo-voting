@@ -254,7 +254,13 @@ library RLP {
 		require(isData(self), "Rlp.sol:Rlp:toUint:1");
 		(uint256 rStartPos, uint256 len) = _decode(self);
 		require(len <= 32, "Rlp.sol:Rlp:toUint:3");
-		require(len != 0, "Rlp.sol:Rlp:toUint:4");
+
+		// XXX: this fails with newer versoins of geth?
+		//require(len != 0, "Rlp.sol:Rlp:toUint:4");
+		if( len == 0 ) {
+			return 0;
+		}
+
 		uint data;
 		assembly {
 			data := div(mload(rStartPos), exp(256, sub(32, len)))
