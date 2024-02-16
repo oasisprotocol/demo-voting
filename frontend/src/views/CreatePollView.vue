@@ -72,8 +72,9 @@ const acl_allowList_addresses = computed(() => {
                     .filter(x => x.length > 0);
   //
   // Validate all extracted addresses
-  let invalid:Record<string,string> = {};
+  let invalid:Record<string,string>|undefined = {};
   let addrs = [];
+  let hasInvalid = false;
   for( const x of in_addrs ) {
     try {
       addrs.push(getAddress(x));
@@ -81,8 +82,12 @@ const acl_allowList_addresses = computed(() => {
     catch(e:any) {
       if( e.code == 'INVALID_ARGUMENT' ) {
         invalid[x] = e.shortMessage;
+        hasInvalid = true;
       }
     }
+  }
+  if( ! hasInvalid ) {
+    invalid = undefined;
   }
   return { addrs, invalid };
 });
@@ -286,10 +291,12 @@ async function getACLOptions(): Promise<[string,AclOptions]> {
   {
     const {addrs, invalid} = toValue(acl_allowList_addresses);
     if( invalid ) {
+      console.log('Invalid is', invalid);
+      console.log('Addrs is', addrs);
       throw new Error('Cannot setup allow list while invalid entries exist');
     }
     return [
-      abi.encode(["address[]"], [addrs.map(x => getBytes(x))]),
+      abi.encode(["address[]"], [addrs]),
       {
         address: acl,
         options: {allowList: true}
