@@ -51,3 +51,12 @@ export type GetProofResponse = {
   accountProof: string[],
   storageProof: StorageProof[],
 };
+
+export type TokenInfo = {
+  chainId: bigint;
+  addr: string;
+  name: string;
+  symbol: string;
+  decimals: bigint;
+  totalSupply: bigint;
+}

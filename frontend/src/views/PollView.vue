@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ZeroAddress, ethers, formatEther, getBytes, TransactionReceipt,
 encodeRlp, decodeRlp,
-         parseEther, TransactionRequest } from 'ethers';
+         parseEther, TransactionRequest, JsonRpcProvider } from 'ethers';
 import { computed, onMounted, ref, toValue } from 'vue';
 
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
@@ -12,7 +12,7 @@ import {
   usePollManagerWithSigner
 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
-import type { Poll, AclOptionsXchain } from '../types';
+import type { Poll, AclOptionsXchain, TokenInfo } from '../types';
 
 
 import AppButton from '@/components/AppButton.vue';
@@ -23,7 +23,7 @@ import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
 import { Pinata, decryptJSON, abbrAddr, randomchoice } from '@/utils';
-import { xchainRPC, fetchStorageProof } from "../xchain";
+import { xchainRPC, fetchStorageProof, tokenDetailsFromProvider } from "../xchain";
 import { useRouter } from 'vue-router';
 
 const props = defineProps<{ id: string }>();
@@ -56,6 +56,12 @@ let canAclVote = ref<Boolean>(false);
 const gvAddrs = ref<string[]>([]);
 const gvBalances = ref<bigint[]>();
 const gvTotalBalance = ref<bigint>(0n);
+
+const isTokenHolderACL = ref<boolean>(false);
+const aclTokenInfo = ref<TokenInfo>();
+
+const isXChainACL = ref<boolean>(false);
+const isWhitelistACL = ref<boolean>(false);
 
 const canVote = computed(() => {
   if (!eth.address) return false;
@@ -254,6 +260,10 @@ onMounted(async () => {
 
   canClosePoll.value = await acl.canManagePoll(await dao.value.getAddress(), proposalId, userAddress);
 
+  isTokenHolderACL.value = params.acl == import.meta.env.VITE_CONTRACT_ACL_TOKENHOLDER;
+  isWhitelistACL.value = params.acl == import.meta.env.VITE_CONTRACT_ACL_VOTERALLOWLIST;
+  isXChainACL.value = params.acl == import.meta.env.VITE_CONTRACT_ACL_STORAGEPROOF;
+
   // TODO: get proof for xchain etc
   if ('xchain' in ipfsParams.acl.options) {
     const xchain = (ipfsParams.acl.options as AclOptionsXchain).xchain;
@@ -266,7 +276,9 @@ onMounted(async () => {
     }
   }
   else if( 'token' in ipfsParams.acl.options ) {
+    const tokenAddress = ipfsParams.acl.options.token;
     canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
+    aclTokenInfo.value = await tokenDetailsFromProvider(tokenAddress, eth.provider as unknown as JsonRpcProvider);
     //const x = ipfsParams.acl.options.token;
   }
 
@@ -335,6 +347,24 @@ onMounted(async () => {
           <p v-for="(addr, i) in votes.out_voters[0]" :key="i" class="text-white text-base" variant="addr">
             {{ addr }}: {{ poll.ipfsParams.choices[Number(votes.out_choices[i])] }}
           </p>
+        </div>
+
+        <div v-if="isTokenHolderACL" class="m-5 text-center text-white p-2">
+          Voting on this poll is restricted to holders of a token on Sapphire.
+
+          <div v-if="aclTokenInfo">
+            <br />
+            {{ aclTokenInfo.addr }}<br /><br />
+            {{ aclTokenInfo.name }} (<b>{{ aclTokenInfo.symbol }}</b>)
+          </div>
+        </div>
+
+        <div v-if="isWhitelistACL">
+          Voting on this poll is restricted to a list of addresses.
+        </div>
+
+        <div v-if="isXChainACL">
+          Voting on this poll is restricted to a token holders.
         </div>
 
         <div v-if="poll?.proposal?.active && eth.signer && eth.isSapphire" class="flex justify-between items-start mt-6">
