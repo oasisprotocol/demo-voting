@@ -3,7 +3,7 @@ import { Contract, ContractRunner, JsonRpcProvider, getBigInt, toBeHex,
 } from "ethers"
 
 import { randomchoice } from './utils'
-import { GetProofResponse } from "./types";
+import { GetProofResponse, TokenInfo } from "./types";
 import { Block, BlockHeader, BlockOptions, HeaderData, JsonRpcBlock } from "@ethereumjs/block";
 import { Common, CustomChain } from "@ethereumjs/common";
 
@@ -287,7 +287,7 @@ export function xchainRPC(chainId:number)
     return new JsonRpcProvider(rpc_url);
 }
 
-export async function tokenDetailsFromProvider(addr:string, provider:ContractRunner)
+export async function tokenDetailsFromProvider(addr:string, provider:JsonRpcProvider) : Promise<TokenInfo>
 {
   const abi = [
     "function name() public view returns (string)",
@@ -296,18 +296,14 @@ export async function tokenDetailsFromProvider(addr:string, provider:ContractRun
     "function totalSupply() public view returns (uint256)",
   ];
   const c = new Contract(addr, abi, provider);
-  try {
-    return {
-      name: await c.name(),
-      symbol: await c.symbol(),
-      decimals: await c.decimals(),
-      totalSupply: await c.totalSupply(),
-    }
-  }
-  catch(e:any) {
-    return {
-      error: e
-    }
+  const network = await provider.getNetwork();
+  return {
+    addr: addr,
+    chainId: network.chainId,
+    name: await c.name(),
+    symbol: await c.symbol(),
+    decimals: await c.decimals(),
+    totalSupply: await c.totalSupply(),
   }
 }
 
