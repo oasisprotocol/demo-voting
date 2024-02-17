@@ -116,7 +116,7 @@ const token_details = computedAsync(async () => {
   }
   const addr = toValue(token_addr);
   if( addr ) {
-    return await tokenDetailsFromProvider(addr, eth.provider);
+    return await tokenDetailsFromProvider(addr, eth.provider as unknown as JsonRpcProvider);
   }
 });
 
