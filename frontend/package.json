@@ -6,16 +6,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "run-p type-check build-only",
+    "build": "run-p type-check build-only && node scripts/optimizehtml.js",
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --noEmit",
     "lint:eslint": "eslint . --ext .vue,.ts --ignore-path .gitignore",
     "lint:prettier": "prettier --check --cache '**/*.{vue,js,ts,json}'",
-    "lint": "npm-run-all lint:**",
+    "lint": "run-p lint:**",
     "format:eslint": "eslint --fix . --ext .vue,.ts --ignore-path .gitignore",
     "format:prettier": "prettier --write --cache '**/*.{vue,js,ts,json}'",
-    "format": "npm-run-all format:**",
+    "format": "run-p format:**",
     "test": "jest"
   },
   "dependencies": {
