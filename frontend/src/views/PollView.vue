@@ -279,7 +279,12 @@ onMounted(async () => {
     const tokenAddress = ipfsParams.acl.options.token;
     canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
     aclTokenInfo.value = await tokenDetailsFromProvider(tokenAddress, eth.provider as unknown as JsonRpcProvider);
-    //const x = ipfsParams.acl.options.token;
+  }
+  else if( 'allowList' in ipfsParams.acl.options ) {
+    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
+  }
+  else if( 'allowAll' in ipfsParams.acl.options ) {
+    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
   }
 
   // Retrieve gasless voting addresses & balances
