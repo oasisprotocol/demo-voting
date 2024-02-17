@@ -6,6 +6,7 @@ import { globSync } from 'glob';
 async function main() {
     let scripts = [];
     let html = (await fs.readFile('dist/index.html')).toString('utf-8');
+    const lengthBefore = html.length;
 
     // Cut all <script> tags from the body
     const rx = /(<script[^>]*>.*?<\/script>)/gms;
@@ -29,6 +30,8 @@ async function main() {
     }
 
     fs.writeFile('dist/index.html', html);
+
+    console.log(`Size after optimization ${(html.length / 1024).toFixed(2)} KiB (${((lengthBefore - html.length) / 1024).toFixed(2)} KiB reduction)`);
 }
 
 Promise.all([main()]);
