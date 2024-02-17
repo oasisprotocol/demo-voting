@@ -7,8 +7,6 @@ dev:
 
 build:
 	$(NPM) $@
-	$(NPM) node scripts/optimizehtml.js
-	ls -lah dist/*.html
 
 clean:
 	rm -rf dist
