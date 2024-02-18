@@ -60,6 +60,7 @@ const isTokenHolderACL = ref<boolean>(false);
 const aclTokenInfo = ref<TokenInfo>();
 
 const isXChainACL = ref<boolean>(false);
+const xchainTokenAddress = ref<string>();
 const isWhitelistACL = ref<boolean>(false);
 
 const canVote = computed(() => {
@@ -267,6 +268,7 @@ onMounted(async () => {
   if ('xchain' in ipfsParams.acl.options) {
     const xchain = (ipfsParams.acl.options as AclOptionsXchain).xchain;
     const provider = xchainRPC(xchain.chainId);
+    xchainTokenAddress.value = xchain.address;
     const signer_addr = await eth.signer?.getAddress();
     if( signer_addr ) {
       const proof = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
@@ -368,7 +370,7 @@ onMounted(async () => {
         </div>
 
         <div v-if="isXChainACL">
-          Voting on this poll is restricted to a token holders.
+          Only token holders of <b>{{ xchainTokenAddress }}</b> may vote on this poll.
         </div>
 
         <div v-if="poll?.proposal?.active && eth.signer && eth.isSapphire" class="flex justify-between items-start mt-6">
