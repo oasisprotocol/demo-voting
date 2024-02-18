@@ -17,7 +17,7 @@ describe('Proofs', function () {
   it('STORAGE_PROOF_RESPONSE to verify', async () => {
     const storageProof = STORAGE_PROOF_RESPONSE.storageProof;
     const key = storageProof[0].key;
-    const trie = new Trie({ useKeyHashing: true }); 
+    const trie = new Trie({ useKeyHashing: true });
 
     await trie.fromProof(
       storageProof[0].proof.map((p) => hexToBytes(p))
