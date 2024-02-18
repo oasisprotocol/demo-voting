@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ZeroAddress, ethers, formatEther, getBytes, TransactionReceipt,
-encodeRlp, decodeRlp,
-         parseEther, TransactionRequest, JsonRpcProvider } from 'ethers';
+         parseEther, JsonRpcProvider } from 'ethers';
 import { computed, onMounted, ref, toValue } from 'vue';
 
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';

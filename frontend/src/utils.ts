@@ -1,6 +1,6 @@
 import { AEAD, NonceSize, KeySize, TagSize } from '@oasisprotocol/deoxysii';
 import { sha256 } from '@noble/hashes/sha256';
-import { LRUCache } from 'typescript-lru-cache';
+import { LRUCache } from 'lru-cache'
 import { Ref, computed, ref, watch } from 'vue';
 
 export function randomchoice<T>(array:T[]):T {
@@ -11,7 +11,7 @@ export abstract class Pinata {
   static JWT_TOKEN = import.meta.env.VITE_PINATA_JWT;
   static GATEWAY_URL = import.meta.env.VITE_IPFS_GATEWAY;
 
-  static #cache = new LRUCache<string,Uint8Array>();
+  static #cache = new LRUCache<string,Uint8Array>({ttl: 60*60*5, max: 100});
 
   static async pinData (data:Uint8Array) {
     const form = new FormData();

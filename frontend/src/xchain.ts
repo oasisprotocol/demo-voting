@@ -1,10 +1,10 @@
-import { Contract, ContractRunner, JsonRpcProvider, getBigInt, toBeHex,
-  ZeroHash, solidityPackedKeccak256, zeroPadValue, Typed, formatUnits, encodeRlp, decodeRlp, BytesLike, hexlify
+import { Contract, JsonRpcProvider, toBeHex, ZeroHash, solidityPackedKeccak256,
+         zeroPadValue, formatUnits, encodeRlp, decodeRlp, BytesLike, hexlify, toQuantity
 } from "ethers"
 
 import { randomchoice } from './utils'
 import { GetProofResponse, TokenInfo } from "./types";
-import { Block, BlockHeader, BlockOptions, HeaderData, JsonRpcBlock } from "@ethereumjs/block";
+import { Block, BlockOptions, JsonRpcBlock } from "@ethereumjs/block";
 import { Common, CustomChain } from "@ethereumjs/common";
 
 export const chain_info: Record<number,any> = {
@@ -387,9 +387,14 @@ export const ETHEREUMJS_POLYGON_BLOCK_OPTIONS = {
   skipConsensusFormatValidation: true
 } as BlockOptions;
 
+
 export async function getBlockHeaderRLP(provider: JsonRpcProvider, blockHash: string, opts: BlockOptions) {
   const result = await provider.send('eth_getBlockByHash', [blockHash, false]) as JsonRpcBlock;
+
+  //return hexlify(blockHeaderFromRpc(result, opts).serialize());
+
   //const h = BlockHeader.fromHeaderData(x, opts);
+
   const b = Block.fromRPC(result, [], opts);
   return hexlify(b.header.serialize());
 }
