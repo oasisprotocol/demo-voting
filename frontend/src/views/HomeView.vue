@@ -16,7 +16,7 @@ const dao = usePollManager();
 
 const FETCH_BATCH_SIZE = 100;
 
-type FullProposal = PollManager.ProposalWithIdStructOutput & { params: Poll };
+type FullProposal = PollManager.ProposalWithIdStructOutput & { params: Poll } & { empty: Boolean };
 const activePolls = shallowRef<Record<string, FullProposal>>({});
 const pastPolls = shallowRef<Record<string, FullProposal>>({});
 const canCreatePoll = ref<Boolean>(false);
@@ -84,8 +84,17 @@ onMounted(async () => {
       return dao.value.getPastProposals(offset, batchSize, {
         blockTag,
       });
-    }).then((proposalsMap) => {
+    }).then(async (proposalsMap) => {
       pastPolls.value = { ...proposalsMap };
+      // Filter polls without votes
+      await Promise.all(
+        Object.keys(pastPolls.value).map(async proposalId => {
+          const voteCount: bigint[] = await dao.value.getVoteCounts('0x' + proposalId);
+          if (voteCount[pastPolls.value[proposalId].proposal.topChoice] === BigInt(0)) {
+            pastPolls.value[proposalId].empty = true;
+          }
+        })
+      );
       isLoadingPast.value = false;
     }),
   ]);
@@ -137,7 +146,7 @@ onMounted(async () => {
         :description="poll.params.description"
         :creator-address="poll.params.creator"
         :choices="poll.params.choices"
-        :outcome="Number(poll.proposal.topChoice)"
+        :outcome="!poll.empty ? Number(poll.proposal.topChoice) : null"
       />
     </div>
     <div v-else>
