@@ -61,6 +61,7 @@ const aclTokenInfo = ref<TokenInfo>();
 
 const isXChainACL = ref<boolean>(false);
 const xchainTokenAddress = ref<string>();
+const xchainStorageProof = ref<ethers.BytesLike>();
 const isWhitelistACL = ref<boolean>(false);
 
 const canVote = computed(() => {
@@ -206,8 +207,7 @@ async function doVote(): Promise<void> {
     console.log('doVote: casting vote using normal tx');
     await eth.switchNetwork(Network.FromConfig);
     const daoSigner = usePollManagerWithSigner();
-    // TODO retrieve cached proof
-    const tx = await daoSigner.vote(proposalId, choice, new Uint8Array([]));
+    const tx = await daoSigner.vote(proposalId, choice, xchainStorageProof.value);
     const receipt = await tx.wait();
 
     if (receipt!.status != 1) throw new Error('cast vote tx failed');
@@ -264,7 +264,6 @@ onMounted(async () => {
   isWhitelistACL.value = params.acl == import.meta.env.VITE_CONTRACT_ACL_VOTERALLOWLIST;
   isXChainACL.value = params.acl == import.meta.env.VITE_CONTRACT_ACL_STORAGEPROOF;
 
-  // TODO: get proof for xchain etc
   if ('xchain' in ipfsParams.acl.options) {
     const xchain = (ipfsParams.acl.options as AclOptionsXchain).xchain;
     const provider = xchainRPC(xchain.chainId);
@@ -273,6 +272,7 @@ onMounted(async () => {
     if( signer_addr ) {
       const proof = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
       console.log('Proof is', proof);
+      xchainStorageProof.value = proof;
       canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof);
     }
   }
