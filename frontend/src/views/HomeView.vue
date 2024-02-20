@@ -90,7 +90,7 @@ onMounted(async () => {
       await Promise.all(
         Object.keys(pastPolls.value).map(async proposalId => {
           const voteCount: bigint[] = await dao.value.getVoteCounts('0x' + proposalId);
-          if (voteCount[pastPolls.value[proposalId].proposal.topChoice] === BigInt(0)) {
+          if (voteCount[Number(pastPolls.value[proposalId].proposal.topChoice)] === 0n) {
             pastPolls.value[proposalId].empty = true;
           }
         })
@@ -146,7 +146,7 @@ onMounted(async () => {
         :description="poll.params.description"
         :creator-address="poll.params.creator"
         :choices="poll.params.choices"
-        :outcome="!poll.empty ? Number(poll.proposal.topChoice) : null"
+        :outcome="!poll.empty ? Number(poll.proposal.topChoice) : undefined"
       />
     </div>
     <div v-else>

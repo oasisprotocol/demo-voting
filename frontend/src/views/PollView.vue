@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ZeroAddress, ethers, formatEther, getBytes, TransactionReceipt,
-         parseEther, JsonRpcProvider } from 'ethers';
+         parseEther, JsonRpcProvider, BytesLike } from 'ethers';
 import { computed, onMounted, ref, toValue } from 'vue';
 
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
@@ -61,7 +61,7 @@ const aclTokenInfo = ref<TokenInfo>();
 
 const isXChainACL = ref<boolean>(false);
 const xchainTokenAddress = ref<string>();
-const xchainStorageProof = ref<ethers.BytesLike>();
+const aclProof = ref<BytesLike>("");
 const isWhitelistACL = ref<boolean>(false);
 
 const canVote = computed(() => {
@@ -207,7 +207,7 @@ async function doVote(): Promise<void> {
     console.log('doVote: casting vote using normal tx');
     await eth.switchNetwork(Network.FromConfig);
     const daoSigner = usePollManagerWithSigner();
-    const tx = await daoSigner.vote(proposalId, choice, xchainStorageProof.value);
+    const tx = await daoSigner.vote(proposalId, choice, toValue(aclProof));
     const receipt = await tx.wait();
 
     if (receipt!.status != 1) throw new Error('cast vote tx failed');
@@ -272,20 +272,23 @@ onMounted(async () => {
     if( signer_addr ) {
       const proof = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
       console.log('Proof is', proof);
-      xchainStorageProof.value = proof;
+      aclProof.value = proof;
       canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof);
     }
   }
   else if( 'token' in ipfsParams.acl.options ) {
     const tokenAddress = ipfsParams.acl.options.token;
-    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
+    aclProof.value = new Uint8Array();
+    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof));
     aclTokenInfo.value = await tokenDetailsFromProvider(tokenAddress, eth.provider as unknown as JsonRpcProvider);
   }
   else if( 'allowList' in ipfsParams.acl.options ) {
-    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
+    aclProof.value = new Uint8Array();
+    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof));
   }
   else if( 'allowAll' in ipfsParams.acl.options ) {
-    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, new Uint8Array([]));
+    aclProof.value = new Uint8Array();
+    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof));
   }
 
   // Retrieve gasless voting addresses & balances
