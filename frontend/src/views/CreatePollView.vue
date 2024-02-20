@@ -7,13 +7,15 @@ import AddIcon from '@/components/AddIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import { retry, Pinata, encryptJSON } from '@/utils';
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
-import { getAddress, parseEther, JsonRpcProvider, getBytes, AbiCoder, Contract } from 'ethers';
+import { getAddress, parseEther, JsonRpcProvider, AbiCoder } from 'ethers';
 
 import { usePollManager, usePollManagerWithSigner } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
-import type { AclOptions, AclOptionsAllowAll, AclOptionsAllowList, AclOptionsToken, AclOptionsXchain, Poll } from '../types';
+import type { AclOptions, Poll } from '../types';
 import { computedAsync } from '../utils';
-import { ETHEREUMJS_POLYGON_BLOCK_OPTIONS, fetchAccountProof, getBlockHeaderRLP, guessStorageSlot, isERCTokenContract, tokenDetailsFromProvider, xchain_ChainNamesToChainId, xchainRPC } from "../xchain";
+import { ETHEREUMJS_POLYGON_BLOCK_OPTIONS, fetchAccountProof, getBlockHeaderRLP,
+         guessStorageSlot, isERCTokenContract, tokenDetailsFromProvider,
+         xchain_ChainNamesToChainId, xchainRPC } from "../xchain";
 
 const eth = useEthereumStore();
 const dao = usePollManager();

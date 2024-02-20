@@ -4,7 +4,6 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { viteSingleFile } from "vite-plugin-singlefile"
-
 import { readFile } from 'node:fs/promises';
 import { execSync } from 'node:child_process';
 
@@ -39,11 +38,13 @@ export default defineConfig({
   },
   plugins: [
     vue(),
+    viteSingleFile(),
     visualizer({
-      sourcemap: false,
+      template: 'treemap',
+      filename: 'stats.html',
+      sourcemap: true,
       gzipSize: true
     }),
-    viteSingleFile()
   ],
   resolve: {
     alias: {
