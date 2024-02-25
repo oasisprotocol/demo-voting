@@ -2,6 +2,8 @@
 import { ref, watch, computed, toValue } from 'vue';
 
 import AppButton from '@/components/AppButton.vue';
+import CheckIcon from '@/components/CheckIcon.vue';
+
 import RemoveIcon from '@/components/RemoveIcon.vue';
 import AddIcon from '@/components/AddIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
@@ -100,13 +102,13 @@ const token_error = computed<string|undefined>(() => {
   const v = toValue(token_addr);
   if( v ) {
     try {
-        getAddress(v);
+      getAddress(v);
+    }
+    catch(e:any) {
+      if( e.code == 'INVALID_ARGUMENT' ) {
+        return e.shortMessage;
       }
-      catch(e:any) {
-        if( e.code == 'INVALID_ARGUMENT' ) {
-          return e.shortMessage;
-        }
-      }
+    }
   }
 });
 const token_valid = computed(()=> {
@@ -125,6 +127,7 @@ const token_details = computedAsync(async () => {
 // Cross-Chain DAO ACL stuff
 const xchain_chainId = ref<number>(1);
 const xchain_hash = ref<string>('');
+const xchain_height = ref<number>();
 const xchain_addr = ref<string>('');
 const xchain_addr_valid = ref<boolean>(false);
 const xchain_holder = ref<string>('');
@@ -181,6 +184,7 @@ async function xchain_refresh() {
   const block = await rpc!.getBlock('latest');
   if( block && block.hash ) {
     xchain_hash.value = block.hash;
+    xchain_height.value = block.number;
     return block.hash;
   }
 }
@@ -612,44 +616,43 @@ async function doCreatePoll(): Promise<string> {
             </div><!-- / Select Chain -->
             <div class="mb-5 pl-5">
               <label for="xchain-addr">
-                Address:
-                  <!-- <button @click.prevent="xchain_autoconfig"
-                    v-if="xchain_addr_valid"
-                    class="bg-blue-500 rounded p-1 px-2 text-white">
-                    Validate
-                  </button> -->
-                  {{ xchain_addr_valid ? 'is valid token' : '' }}
+                <span class="flex gap-2">
+                  Address<CheckIcon v-if="xchain_addr_valid" />
+                </span>
               </label>
               <input type="text" id="xchain-addr" v-model="xchain_addr" />
             </div><!-- / Token or DAO -->
             <div class="mb-5 pl-5" v-if="xchain_addr_valid">
               <label for="xchain-holder">
-                Holder:
-                  <!-- <button @click.prevent="xchain_holder"
-                    class="bg-blue-500 rounded p-1 px-2 text-white">
-                  </button>
-                  {{ xchain_holder_status }} -->
-                  {{ xchain_holder_valid ? 'is valid holder' : '' }}
+                <span class="flex gap-2">
+                  Holder<CheckIcon v-if="xchain_holder_valid" />
+                </span>
               </label>
               <input type="text" id="xchain-holder" v-model="xchain_holder" />
             </div><!-- / Token or DAO -->
             <div class="mb-5 pl-5" v-if="xchain_holder_valid">
               <label for="xchain-slot">
-                Storage Slot:
-                  {{ (xchain_holder_balance??0) > 0 ? `has a balance of ${xchain_holder_balance }` : '' }}
+                <span class="flex gap-2">
+                  Storage Slot<CheckIcon v-if="(xchain_holder_balance??0) > 0" />
+                </span>
               </label>
               <input type="text" id="xchain-slot" v-model="xchain_slot" />
+              <span>
+                {{ (xchain_holder_balance??0) > 0 ? `NOTE. Account holds a balance of ${xchain_holder_balance }` : '' }}
+              </span>
             </div><!-- / X-Chain Slot -->
             <div class="mb-5 pl-5" v-if="xchain_holder_valid">
               <label for="xchain-hash">
-                Block Hash:
                 <button @click.prevent="xchain_refresh"
-                        v-if="xchain_chainId"
-                        class="bg-blue-500 rounded p-1 px-2 text-white">
-                  Refresh
+                  v-if="xchain_chainId"
+                  class="bg-blue-500 rounded p-1 px-2 text-white">
+                  Refresh block
                 </button>
               </label>
               <input type="text" id="xchain-hash" v-model="xchain_hash" />
+              <span>
+                {{ (xchain_height??0) > 0 ? `NOTE. Block height is ${ xchain_height }` : '' }}
+              </span>
             </div><!-- / Block Hash -->
           </div><!-- / X-Chain ACL -->
         </div><!-- / Extended options -->
