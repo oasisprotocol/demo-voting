@@ -318,7 +318,7 @@ export function getMapSlot(holderAddress: string, mappingPosition: number): stri
 
 export async function isERCTokenContract(provider: JsonRpcProvider, address: string): Promise<boolean> {
   try {
-    tokenDetailsFromProvider(address, provider);
+    await tokenDetailsFromProvider(address, provider);
   } catch (e) {
     return false
   }
