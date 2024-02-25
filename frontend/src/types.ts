@@ -26,15 +26,15 @@ export type AclOptions =
 };
 
 export type Poll = {
-    creator: string;
-    name: string;
-    description: string;
-    choices: string[];
-    options: {
-      publishVotes: boolean;
-      closeTimestamp: number;
-    };
-    acl: AclOptions;
+  creator: string;
+  name: string;
+  description: string;
+  choices: string[];
+  options: {
+    publishVotes: boolean;
+    closeTimestamp: number;
+  };
+  acl: AclOptions;
 };
 
 export type StorageProof = {
