@@ -126,7 +126,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
         PollSettings storage poll = s_polls[gvid];
 
         if( poll.dao != IPollManager(address(0)) ) {
-            revert onPollCreated_409(); // Poll already exists
+            require(false, "onPollCreated_409()"); // Poll already exists
         }
 
         poll.owner = in_creator;
@@ -153,7 +153,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         // Poll must exist
         if( poll.dao == IPollManager(address(0)) ) {
-            revert onPollClosed_404();
+            require(false, "onPollClosed_404()");
         }
 
         poll.closed = true;
@@ -196,7 +196,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
     {
         EthereumKeypair[] storage keypairs = s_polls[in_gvid].keypairs;
         if( keypairs.length == 0 ) {
-            revert internal_randomKeypair_404();
+            require(false, "internal_randomKeypair_404()");
         }
 
         uint16 x = uint16(bytes2(Sapphire.randomBytes(2, "")));
@@ -230,12 +230,12 @@ contract GaslessVoting is IERC165, IGaslessVoter
         KeypairIndex memory idx = s_addrToKeypair[addr];
 
         if( idx.gvid != in_gvid ) {
-            revert internal_keypairForGvidByAddress_403();
+            require(false, "internal_keypairForGvidByAddress_403()");
         }
 
         // Keypair must exist for address
         if( idx.gvid == 0 ) {
-            revert internal_keypairForGvidByAddress_404();
+            require(false, "internal_keypairForGvidByAddress_404()");
         }
 
         PollSettings storage poll = s_polls[idx.gvid];
@@ -259,7 +259,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         // Keypair must exist for address
         if( idx.gvid == 0 ) {
-            revert internal_keypairByAddress_404();
+            require(false, "internal_keypairByAddress_404()");
         }
 
         out_poll = s_polls[idx.gvid];
@@ -281,7 +281,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         // poll must be owned by sender
         if( s_polls[gvid].owner != msg.sender ) {
-            revert addKeypair_403();
+            require(false, "addKeypair_403()");
         }
 
         address addr = internal_addKeypair(gvid);
@@ -325,13 +325,13 @@ contract GaslessVoting is IERC165, IGaslessVoter
         IPollManager dao = s_polls[gvid].dao;
 
         if( dao == IPollManager(address(0)) ) {
-            revert makeVoteTransaction_404();
+            require(false, "makeVoteTransaction_404()");
         }
 
         // User must be able to vote on the poll
         // so we don't waste gas submitting invalid transactions
         if( 0 == dao.canVoteOnPoll(in_request.proposalId, in_request.voter, in_data) ) {
-            revert makeVoteTransaction_401();
+            require(false, "makeVoteTransaction_401()");
         }
 
         // Validate EIP-712 signed voting request
@@ -347,7 +347,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
             ))
         ));
         if( in_request.voter != ecrecover(requestDigest, uint8(in_rsv.v), in_rsv.r, in_rsv.s) ) {
-            revert makeVoteTransaction_403();
+            require(false, "makeVoteTransaction_403()");
         }
 
         // Encrypt request to authenticate it when we're invoked again
@@ -399,7 +399,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         (,kp) = internal_keypairByAddress(msg.sender);
         if( kp.gvid == 0 ) {    // Keypair must exist and belong to the sender
-            revert proxy_403();
+            require(false, "proxy_403()");
         }
 
         bytes memory plaintext = Sapphire.decrypt(encryptionSecret, ciphertextNonce, ciphertext, "");
@@ -409,7 +409,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
         (bool success,) = addr.call{value: msg.value}(subcall_data);
 
         if( false == success ) {
-            revert proxy_500();
+            require(false, "proxy_500()");
         }
     }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ZeroAddress, ethers, formatEther, getBytes, TransactionReceipt,
-         parseEther, JsonRpcProvider, BytesLike } from 'ethers';
+         parseEther, JsonRpcProvider, BytesLike, Transaction } from 'ethers';
 import { computed, onMounted, ref, toValue } from 'vue';
 
 import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
@@ -60,7 +60,7 @@ const isTokenHolderACL = ref<boolean>(false);
 const aclTokenInfo = ref<TokenInfo>();
 
 const isXChainACL = ref<boolean>(false);
-const xchainTokenAddress = ref<string>();
+const xchainOptions = ref<AclOptionsXchain|undefined>();
 const aclProof = ref<BytesLike>("");
 const isWhitelistACL = ref<boolean>(false);
 
@@ -160,12 +160,15 @@ async function doVote(): Promise<void> {
     // Submit voting request to get signed transaction
     const feeData = await eth.provider.getFeeData();
     console.log('doVote.gasless: constructing tx', 'gasPrice', feeData.gasPrice);
-    const tx = await gv.makeVoteTransaction(submitAddr, submitNonce, feeData.gasPrice!, request, new Uint8Array([]), rsv);
+    const tx = await gv.makeVoteTransaction(submitAddr, submitNonce, feeData.gasPrice!, request, toValue(aclProof), rsv);
 
     // Submit pre-signed signed transaction
     let plain_resp;
     let receipt: TransactionReceipt | null = null;
     try {
+      const txDecoded = Transaction.from(tx);
+      const txDecodedGas = await eth.provider.estimateGas(txDecoded);
+      console.log('TxDecodedGas', txDecodedGas);
       plain_resp = await eth.provider.broadcastTransaction(tx);
       console.log('doVote.gasless: waiting for tx', plain_resp.hash);
       receipt = await eth.provider.waitForTransaction(plain_resp.hash);
@@ -267,7 +270,7 @@ onMounted(async () => {
   if ('xchain' in ipfsParams.acl.options) {
     const xchain = (ipfsParams.acl.options as AclOptionsXchain).xchain;
     const provider = xchainRPC(xchain.chainId);
-    xchainTokenAddress.value = xchain.address;
+    xchainOptions.value = ipfsParams.acl.options;
     const signer_addr = await eth.signer?.getAddress();
     if( signer_addr ) {
       const proof = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
@@ -368,12 +371,15 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-if="isWhitelistACL">
+        <div v-if="isWhitelistACL" class="text-white text-center m-5 p-2">
           Voting on this poll is restricted to a list of addresses.
         </div>
 
-        <div v-if="isXChainACL">
-          Only token holders of <b>{{ xchainTokenAddress }}</b> may vote on this poll.
+        <div v-if="isXChainACL" class="text-white text-center m-5 p-2">
+          Only token holders of a cross-chain token may vote on this poll:<br /><br />
+            Address: <b>{{ xchainOptions?.xchain.address }}</b><br />
+            Chain ID: <b>{{ xchainOptions?.xchain.chainId }}</b><br />
+            Snapshot Block: <b>{{ xchainOptions?.xchain.blockHash }}</b><br />
         </div>
 
         <div v-if="poll?.proposal?.active && eth.signer && eth.isSapphire" class="flex justify-between items-start mt-6">
