@@ -9,6 +9,10 @@ build:
 deploy-localnet:
 	$(NPM) hardhat --network sapphire-localnet deploy --viteenv ../frontend/.env.development
 
+.PHONY: test-localnet
+test-localnet:
+	$(NPM) hardhat --network sapphire-localnet test
+
 .PHONY: test
 test:
 	$(NPM) test
