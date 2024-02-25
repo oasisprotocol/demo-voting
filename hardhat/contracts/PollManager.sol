@@ -249,7 +249,7 @@ contract PollManager is IERC165, IPollManager {
         uint256 numChoices = proposal.params.numChoices;
 
         if (in_choiceId >= numChoices) {
-            revert Vote_UnknownChoice();
+            require(false, "Vote_UnknownChoice()");
         }
 
         Ballot storage ballot = s_ballots[in_proposalId];
@@ -311,7 +311,7 @@ contract PollManager is IERC165, IPollManager {
         external
     {
         if( msg.sender != address(GASLESS_VOTER) ) {
-            revert Vote_NotAllowed();
+            require(false, "Vote_NotAllowed()");
         }
 
         internal_castVote(in_voter, in_proposalId, in_choiceId, in_data);

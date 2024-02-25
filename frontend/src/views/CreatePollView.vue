@@ -154,12 +154,22 @@ watch(xchain_addr, async (xchain_addr) => {
   }
 
   const rpc = toValue(xchain_rpc);
-  if (addr && rpc && await isERCTokenContract(rpc, addr)) {
-    console.log('watched');
-    xchain_addr_valid.value = true;
-  } else {
-    xchain_addr_valid.value = false;
+  if( ! rpc ) {
+    return;
   }
+
+  try {
+    if (await isERCTokenContract(rpc, addr)) {
+      console.log('xchain_addr is Token');
+      xchain_addr_valid.value = true;
+      return;
+    }
+  }
+  catch( e:any )   {
+    console.log('xchain_addr is not token!');
+  }
+
+  xchain_addr_valid.value = false;
 })
 
 watch(xchain_holder, async (xchain_holder) => {
@@ -174,6 +184,10 @@ watch(xchain_holder, async (xchain_holder) => {
       xchain_holder_balance.value = slot.balance;
       xchain_slot.value = slot.index;
       xchain_slot_valid.value = true;
+
+      if( ! xchain_hash.value ) {
+        await xchain_refresh();
+      }
     }
   }
 })
@@ -621,6 +635,9 @@ async function doCreatePoll(): Promise<string> {
                 </span>
               </label>
               <input type="text" id="xchain-addr" v-model="xchain_addr" />
+              <div v-if="!xchain_addr_valid">
+                Not valid!
+              </div>
             </div><!-- / Token or DAO -->
             <div class="mb-5 pl-5" v-if="xchain_addr_valid">
               <label for="xchain-holder">
