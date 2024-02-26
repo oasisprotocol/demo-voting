@@ -148,13 +148,6 @@ service where we store details of the ballots to.
 VITE_PINATA_JWT=
 ```
 
-Additionally, we need a [Alchemy API key] to query different blockchain
-networks.
-
-```yaml
-VITE_ALCHEMY_API_KEY=
-```
-
 Start Vue app:
 
 ```sh
@@ -169,7 +162,6 @@ forget to *clear your account's activity* each time or manually specify the
 correct account nonce.
 
 [Pinata JWT key]: https://docs.pinata.cloud/docs/getting-started#2-generate-your-api-keys
-[Alchemy API key]: https://docs.alchemy.com/reference/api-overview
 
 ### Frontend Deployment
 

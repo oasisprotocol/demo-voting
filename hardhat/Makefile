@@ -13,6 +13,10 @@ deploy-localnet:
 test-localnet:
 	$(NPM) hardhat --network sapphire-localnet test
 
+.PHONY: deploy-testnet
+deploy-testnet:
+	$(NPM) hardhat --network sapphire-testnet deploy --viteenv ../frontend/.env.production
+
 .PHONY: test
 test:
 	$(NPM) test
