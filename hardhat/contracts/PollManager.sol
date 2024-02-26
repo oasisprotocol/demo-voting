@@ -277,7 +277,6 @@ contract PollManager is IERC165, IPollManager {
             z -= a;
             z += b;
             z ^= nextXorMask;
-
             ballot.voteCounts[i] = z;
         }
 

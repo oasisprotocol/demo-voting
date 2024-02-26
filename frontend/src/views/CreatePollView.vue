@@ -8,14 +8,13 @@ import RemoveIcon from '@/components/RemoveIcon.vue';
 import AddIcon from '@/components/AddIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import { retry, Pinata, encryptJSON } from '@/utils';
-import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
+import type { PollManager, AclOptions, Poll } from '@oasisprotocol/demo-voting-contracts';
 import { getAddress, parseEther, JsonRpcProvider, AbiCoder } from 'ethers';
 
 import { usePollManager, usePollManagerWithSigner } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
 import { computedAsync } from '../utils';
 
-import type { AclOptions, Poll } from '@oasisprotocol/demo-voting-contracts';
 import { fetchAccountProof, getBlockHeaderRLP, guessStorageSlot,
          isERCTokenContract, tokenDetailsFromProvider, xchain_ChainNamesToChainId,
          xchainRPC } from "@oasisprotocol/demo-voting-contracts";

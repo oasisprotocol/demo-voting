@@ -8,7 +8,7 @@ struct VotingRequest {
     address voter;
     address dao;
     bytes32 proposalId;
-    uint256 choiceId;
+    uint8 choiceId;
 }
 
 interface IGaslessVoter {

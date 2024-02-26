@@ -200,6 +200,9 @@ importers:
       '@nomicfoundation/hardhat-ethers':
         specifier: ^3.0.5
         version: 3.0.5(ethers@6.10.0)(hardhat@2.19.4)
+      '@oasisprotocol/demo-voting-contracts':
+        specifier: workspace:^
+        version: link:../contracts
       '@oasisprotocol/sapphire-contracts':
         specifier: ^0.2.7
         version: 0.2.7

@@ -168,7 +168,17 @@ contract GaslessVoting is IERC165, IGaslessVoter
         internal
         returns (address payable)
     {
-        (address signerAddr, bytes32 signerSecret) = EthereumUtils.generateKeypair();
+        address signerAddr;
+        bytes32 signerSecret;
+
+        if( block.chainid != 1337 ) {
+            (signerAddr, signerSecret) = EthereumUtils.generateKeypair();
+        }
+        else {
+            // Mock this on hardhat
+            signerSecret = keccak256(abi.encodePacked(msg.sender, block.number));
+            signerAddr = address(bytes20(keccak256(abi.encodePacked(signerSecret))));
+        }
 
         EthereumKeypair[] storage keypairs = s_polls[in_gvid].keypairs;
 
@@ -353,8 +363,26 @@ contract GaslessVoting is IERC165, IGaslessVoter
         // Encrypt request to authenticate it when we're invoked again
         bytes32 ciphertextNonce = keccak256(abi.encodePacked(encryptionSecret, requestDigest));
 
+        bytes memory plaintext = abi.encode(
+                            dao,
+                            abi.encodeCall(
+                                dao.proxy,
+                                (in_request.voter,
+                                 in_request.proposalId,
+                                 in_request.choiceId,
+                                 in_data)
+                            ));
+
         // Choose a random keypair to submit the transaction from
         EthereumKeypair memory kp = internal_keypairForGvidByAddress(gvid, in_addr);
+
+        bytes memory ciphertext = Sapphire.encrypt(
+                        encryptionSecret,
+                        ciphertextNonce,
+                        plaintext,
+                        "");
+
+        bytes memory innerCall = abi.encodeCall(this.proxy, (ciphertextNonce, ciphertext));
 
         // Return signed transaction invoking 'submitEncryptedVote'
         return EIP155Signer.sign(
@@ -363,27 +391,11 @@ contract GaslessVoting is IERC165, IGaslessVoter
             EIP155Signer.EthTx({
                 nonce: in_nonce,
                 gasPrice: in_gasPrice,
-                gasLimit: 250000,
+                gasLimit: 2500000,
                 to: address(this),
                 value: 0,
                 chainId: block.chainid,
-                data: abi.encodeWithSelector(
-                    this.proxy.selector,
-                    ciphertextNonce,
-                    // Encrypt inner call, with DAO address as target
-                    Sapphire.encrypt(
-                        encryptionSecret,
-                        ciphertextNonce,
-                        abi.encode(
-                            dao,
-                            // Inner call to DAO contract
-                            abi.encodeWithSelector(
-                                dao.proxy.selector,
-                                in_request.voter,
-                                in_request.proposalId,
-                                in_request.choiceId,
-                                in_data)),
-                        ""))
+                data: innerCall
             }));
     }
 
@@ -393,7 +405,7 @@ contract GaslessVoting is IERC165, IGaslessVoter
     error proxy_500();
 
     function proxy(bytes32 ciphertextNonce, bytes memory ciphertext)
-        external payable
+        public payable
     {
         EthereumKeypair storage kp;
 
@@ -406,10 +418,18 @@ contract GaslessVoting is IERC165, IGaslessVoter
 
         (address addr, bytes memory subcall_data) = abi.decode(plaintext, (address, bytes));
 
-        (bool success,) = addr.call{value: msg.value}(subcall_data);
+        (bool success, bytes memory reason) = addr.call{value: msg.value}(subcall_data);
 
-        if( false == success ) {
-            require(false, "proxy_500()");
+        if( ! success )
+        {
+            require( reason.length > 0, "proxy_500()" );
+
+            if( reason.length > 0) {
+                /// @solidity memory-safe-assembly
+                assembly {
+                    revert(add(32, reason), mload(reason))
+                }
+            }
         }
     }
 

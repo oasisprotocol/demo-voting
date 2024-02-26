@@ -310,6 +310,14 @@ export async function tokenDetailsFromProvider(addr:string, provider:JsonRpcProv
   }
 }
 
+
+export async function getHolderBalance(token:string, holder:string, provider:JsonRpcProvider) : Promise<bigint>
+{
+  return await new Contract(token, [
+    "function balanceOf(address) public view returns (uint256)",
+  ], provider).balanceOf(holder);
+}
+
 export function getMapSlot(holderAddress: string, mappingPosition: number): string {
   return solidityPackedKeccak256(
     ["bytes", "uint256"],

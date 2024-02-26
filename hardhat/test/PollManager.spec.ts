@@ -1,14 +1,11 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-import { AbiCoder, BytesLike, Contract, EventLog, JsonRpcProvider, ZeroHash,
-         decodeRlp, encodeRlp, formatEther, getBytes, hexlify, parseEther,
-         solidityPackedKeccak256, zeroPadValue
+import { AbiCoder, BytesLike, EventLog, JsonRpcProvider, ZeroHash,
+         decodeRlp, encodeRlp, formatEther, getBytes, parseEther
         } from "ethers";
 
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { Common, CustomChain } from "@ethereumjs/common";
-import { Block, BlockOptions, JsonRpcBlock } from "@ethereumjs/block";
+import { signVotingRequest, getHolderBalance, fetchStorageProof, RequestType, getBlockHeaderRLP, fetchAccountProof, guessStorageSlot } from "@oasisprotocol/demo-voting-contracts";
 
 import { PollManager, TokenHolderACL, AllowAllACL, VoterAllowListACL, GaslessVoting,
          StorageProofACL, HeaderCache, StorageProof, AccountCache
@@ -69,8 +66,8 @@ describe("PollManager", function () {
 
   before(async () => {
     acl_allowall = await deployContract('AllowAllACL') as AllowAllACL;
-    //acl_voterlist = await deployContract('VoterAllowListACL') as VoterAllowListACL;
-    //acl_tokenholder = await deployContract('TokenHolderACL') as TokenHolderACL;
+    acl_voterlist = await deployContract('VoterAllowListACL') as VoterAllowListACL;
+    acl_tokenholder = await deployContract('TokenHolderACL') as TokenHolderACL;
     gv = await deployContract('GaslessVoting') as GaslessVoting;
 
     await deployStorageProofStuff();
@@ -164,6 +161,11 @@ describe("PollManager", function () {
   });
 
   it.skip('Test StorageProof ACL', async function () {
+    // This test requires impersonation
+    if ((await ethers.provider.getNetwork()).chainId != 1337n) {
+      this.skip();
+    }
+
     const blockHash = '0xcb6242f4219a09f7ef7dfd51f7594b23d2a6ad1e06b8b99a55fef4ec82cf61af';
     const abi = AbiCoder.defaultAbiCoder();
     const headerRlpBytes = BLOCK_HEADERS[blockHash];
@@ -218,36 +220,6 @@ describe("PollManager", function () {
     await tx2.wait();
   });
 
-  type RequestType = {
-    dao: string;
-    voter: string;
-    proposalId: BytesLike;
-    choiceId: number;
-  };
-
-  async function signRequest(signer: HardhatEthersSigner, request: RequestType) {
-    // Sign voting request
-    const signature = await signer.signTypedData(
-      {
-        name: 'GaslessVoting',
-        version: '1',
-        chainId: (await ethers.provider.getNetwork()).chainId,
-        verifyingContract: await gv.getAddress(),
-      },
-      {
-        VotingRequest: [
-          { name: 'voter', type: 'address' },
-          { name: 'dao', type: 'address' },
-          { name: 'proposalId', type: 'bytes32' },
-          { name: 'choiceId', type: 'uint256' },
-        ],
-      },
-      request,
-    );
-    const rsv = ethers.Signature.from(signature);
-    return rsv;
-  }
-
   it.skip('Test Gasless Voting', async function () {
     // This test requires RNG and runs on the Sapphire network only.
     // You can set up sapphire-dev image and run the test like this:
@@ -284,8 +256,8 @@ describe("PollManager", function () {
       voter: await signer.getAddress(),
       proposalId: proposalId,
       choiceId: 1,
-    };
-    const rsv = await signRequest(signer, request);
+    } as RequestType;
+    const rsv = await signVotingRequest(await gv.getAddress(), ethers.provider, signer, request);
 
     const gvTx = await gv.makeVoteTransaction(gvAddr, gvNonce, feeData.gasPrice!, request, new Uint8Array([]), rsv);
     const gvResponse = await ethers.provider.broadcastTransaction(gvTx);
@@ -293,118 +265,42 @@ describe("PollManager", function () {
     expect(gvReceipt?.status).eq(1);
   });
 
-  type GetProofResponse = {
-    balance: string,
-    codeHash: string,
-    nonce: string,
-    storageHash: string,
-    accountProof: string[],
-    storageProof: {
-      key: string,
-      value: string,
-      proof: string[],
-    }[],
-  };
-
-  function getMapSlot(holderAddress: string, mappingPosition: number): string {
-    return solidityPackedKeccak256(
-      ["bytes", "uint256"],
-      [zeroPadValue(holderAddress, 32), mappingPosition]
-    );
-  }
-
-  async function fetchStorageProof(
-    provider: JsonRpcProvider,
-    blockHash: string,
-    address: string,
-    slot: number,
-    holder: string
-  ): Promise<BytesLike>
-  {
-    // TODO Probably unpack and verify
-    const response = await provider.send('eth_getProof', [
-      address,
-      [getMapSlot(holder, slot)],
-      blockHash,
-    ]) as GetProofResponse;
-    return encodeRlp(response.storageProof[0].proof.map(decodeRlp));
-  }
-
-  async function fetchAccountProof(
-    provider: JsonRpcProvider,
-    blockHash: string,
-    address: string
-  ): Promise<BytesLike> {
-    const response = await provider.send('eth_getProof', [
-      address,
-      [],
-      blockHash,
-    ]) as GetProofResponse;
-    return encodeRlp(response.accountProof.map(decodeRlp));
-  }
-
-  const ETHEREUMJS_POLYGON_BLOCK_OPTIONS = {
-    common: Common.custom(CustomChain.PolygonMainnet, {hardfork: 'london'}),
-    skipConsensusFormatValidation: true
-  } as BlockOptions;
-
-
-  async function getBlockHeaderRLP(
-    provider: JsonRpcProvider,
-    blockHash: string,
-    opts?: BlockOptions
-  ) {
-    opts = opts ?? ETHEREUMJS_POLYGON_BLOCK_OPTIONS;
-    const result = await provider.send('eth_getBlockByHash', [blockHash, false]) as JsonRpcBlock;
-
-    //return hexlify(blockHeaderFromRpc(result, opts).serialize());
-
-    //const h = BlockHeader.fromHeaderData(x, opts);
-
-    const b = Block.fromRPC(result, [], opts);
-    return hexlify(b.header.serialize());
-  }
-
-  async function getHolderBalance(token:string, holder:string, provider:JsonRpcProvider) : Promise<bigint>
-  {
-    return await new Contract(token, [
-      "function balanceOf(address) public view returns (uint256)",
-    ], provider).balanceOf(token);
-  }
-
   it('Gasless Voting with Storage Proof', async function () {
+    /*
     if ((await ethers.provider.getNetwork()).chainId == 1337n) {
       this.skip();
     }
-
-    const signer = await ethers.provider.getSigner(0);
-
-    const tokenAddress = '0x00027bc3c5490737b3112526efef90abf921d3d4';
+    */
 
     const mumbai = new JsonRpcProvider('https://polygon-mumbai.g.alchemy.com/v2/g4qVlKDewH8F19bv47GB1Iq3Ca_XxWhN');
     const mumbai_height = await mumbai.getBlockNumber();
     const mumbah_block = await mumbai.getBlock(mumbai_height);
     const mumbai_hash = mumbah_block!.hash!;
+
+    const signer = await ethers.provider.getSigner(0);
+    const signerAddress = await signer.getAddress();
+
+    const tokenAddress = '0x00027bc3c5490737b3112526efef90abf921d3d4';
+    //console.log('Token', tokenAddress);
+    //console.log('Signer', signerAddress);
+
+    const holderBalance = await getHolderBalance(tokenAddress, signerAddress, mumbai);
+    //console.log('Holder balance is', holderBalance);
+
+    const storageMapInfo = await guessStorageSlot(mumbai, tokenAddress, signerAddress, mumbai_hash);
+    if( ! storageMapInfo ) {
+      throw new Error("Couldn't find storage map!");
+    }
+    //console.log('Token Balance Slot', storageMapInfo);
+
     const headerRlpBytes = await getBlockHeaderRLP(mumbai, mumbai_hash);
     const rlpAccountProof = await fetchAccountProof(mumbai, mumbai_hash, tokenAddress);
 
-    /*
-    const pco = {
-      settings: {
-        'block_hash': mumbai_hash,
-        'account_address': tokenAddress,
-      },
-      headerRlpBytes,
-      rlpAccountProof
-    };
-    */
-
-    const blockHash = '0xcb6242f4219a09f7ef7dfd51f7594b23d2a6ad1e06b8b99a55fef4ec82cf61af';
     const abi = AbiCoder.defaultAbiCoder();
     const aclParams = getBytes(abi.encode(["tuple(tuple(bytes32,address,uint256),bytes,bytes)"], [
       [ // PollCreationOptions
         [ // PollSettings
-          mumbai_hash, tokenAddress, 3
+          mumbai_hash, tokenAddress, storageMapInfo.index
         ],
         headerRlpBytes,
         rlpAccountProof
@@ -419,9 +315,6 @@ describe("PollManager", function () {
       closeTimestamp: 0n,
       acl: await acl_storageproof.getAddress()
     }, aclParams, parseEther('1'));
-
-    const holderBalance = await getHolderBalance(tokenAddress, await signer.getAddress(), mumbai);
-    console.log('Holder balance is', formatEther(holderBalance));
 
     const gvAddresses = await gv.listAddresses(await pm.getAddress(), proposalId);
     expect(gvAddresses.out_addrs.length).gt(0);
@@ -438,11 +331,10 @@ describe("PollManager", function () {
       proposalId: proposalId,
       choiceId: 1,
     };
-    const rsv = await signRequest(signer, request);
+    const rsv = await signVotingRequest(await gv.getAddress(), ethers.provider, signer, request);
 
-    const signerAddress = await signer.getAddress();
     const storageProof = await fetchStorageProof(mumbai, mumbai_hash, tokenAddress, 101, signerAddress);
-    console.log('Storage proof is', storageProof);
+    //console.log('Storage proof is', storageProof);
     const gvTx = await gv.makeVoteTransaction(gvAddr, gvNonce, feeData.gasPrice!, request, storageProof, rsv);
 
     const gvResponse = await ethers.provider.broadcastTransaction(gvTx);
