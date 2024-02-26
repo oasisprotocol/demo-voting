@@ -92,6 +92,9 @@ async function closeBallot(): Promise<void> {
       isClosed.value = true;
     }
   }
+  catch (e) {
+    console.log(e)
+  }
   finally {
     isClosing.value = false;
   }
@@ -276,22 +279,26 @@ onMounted(async () => {
       const proof = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
       console.log('Proof is', proof);
       aclProof.value = proof;
-      canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof);
+      canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof)
+        .catch((e: Error) => { console.log(e)});
     }
   }
   else if( 'token' in ipfsParams.acl.options ) {
     const tokenAddress = ipfsParams.acl.options.token;
     aclProof.value = new Uint8Array();
-    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof));
+    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof))
+      .catch((e: Error) => { console.log(e)});;
     aclTokenInfo.value = await tokenDetailsFromProvider(tokenAddress, eth.provider as unknown as JsonRpcProvider);
   }
   else if( 'allowList' in ipfsParams.acl.options ) {
     aclProof.value = new Uint8Array();
-    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof));
+    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof))
+      .catch((e: Error) => { console.log(e)});;
   }
   else if( 'allowAll' in ipfsParams.acl.options ) {
     aclProof.value = new Uint8Array();
-    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof));
+    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof))
+      .catch((e: Error) => { console.log(e)});;
   }
 
   // Retrieve gasless voting addresses & balances
