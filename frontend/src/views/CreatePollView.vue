@@ -13,11 +13,12 @@ import { getAddress, parseEther, JsonRpcProvider, AbiCoder } from 'ethers';
 
 import { usePollManager, usePollManagerWithSigner } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
-import type { AclOptions, Poll } from '../types';
 import { computedAsync } from '../utils';
-import { ETHEREUMJS_POLYGON_BLOCK_OPTIONS, fetchAccountProof, getBlockHeaderRLP,
-         guessStorageSlot, isERCTokenContract, tokenDetailsFromProvider,
-         xchain_ChainNamesToChainId, xchainRPC } from "../xchain";
+
+import type { AclOptions, Poll } from '@oasisprotocol/demo-voting-contracts';
+import { fetchAccountProof, getBlockHeaderRLP, guessStorageSlot,
+         isERCTokenContract, tokenDetailsFromProvider, xchain_ChainNamesToChainId,
+         xchainRPC } from "@oasisprotocol/demo-voting-contracts";
 
 const eth = useEthereumStore();
 const dao = usePollManager();
@@ -329,7 +330,7 @@ async function getACLOptions(): Promise<[string,AclOptions]> {
     const rpc = xchainRPC(chainId);
     const blockHash = toValue(xchain_hash);
     const contractAddress = toValue(xchain_addr);
-    const headerRlpBytes = await getBlockHeaderRLP(rpc, blockHash, ETHEREUMJS_POLYGON_BLOCK_OPTIONS);
+    const headerRlpBytes = await getBlockHeaderRLP(rpc, blockHash);
     const rlpAccountProof = await fetchAccountProof(rpc, blockHash, contractAddress);
     console.log('headerRlpBytes', headerRlpBytes);
     console.log('rlpAccountProof', rlpAccountProof);
