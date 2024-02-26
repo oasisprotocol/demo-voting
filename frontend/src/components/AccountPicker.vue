@@ -84,11 +84,11 @@ onMounted(async () => {
 
 <style lang="postcss" scoped>
 .account-picker-content {
-  @apply inline-flex items-center gap-2 xl:gap-6;
+  @apply inline-flex items-center gap-1 xl:gap-6;
 }
 
 .account-picker {
-  @apply inline-flex items-center border border-gray-900 rounded-xl bg-white border-primaryDark h-12 p-2 xl:p-4 xl:fixed xl:right-10 xl:top-28 xl:h-auto;
+  @apply inline-flex items-center border border-gray-900 rounded-xl bg-white border-primaryDark h-12 p-2 h-fit;
   border-width: 3px;
   border-style: solid;
 
@@ -98,7 +98,7 @@ onMounted(async () => {
 }
 
 span {
-  @apply text-base text-primaryDark text-right xl:text-xl;
+  @apply text-base text-primaryDark text-right xl:text-lg;
 }
 
 .unk-net {
