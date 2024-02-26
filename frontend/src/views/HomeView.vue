@@ -2,8 +2,7 @@
 import { ethers, getBytes } from 'ethers';
 import { onMounted, ref, shallowRef } from 'vue';
 
-import type { Poll } from '../types';
-import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
+import type { PollManager, Poll } from '@oasisprotocol/demo-voting-contracts';
 import { usePollManager, usePollManagerACL } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
 import AppButton from '@/components/AppButton.vue';

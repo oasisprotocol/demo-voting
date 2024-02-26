@@ -3,15 +3,14 @@ import { ZeroAddress, ethers, formatEther, getBytes, TransactionReceipt,
          parseEther, JsonRpcProvider, BytesLike, Transaction } from 'ethers';
 import { computed, onMounted, ref, toValue } from 'vue';
 
-import type { PollManager } from '@oasisprotocol/demo-voting-contracts';
-import { IPollACL__factory } from '@oasisprotocol/demo-voting-contracts';
+import { IPollACL__factory, xchainRPC, fetchStorageProof, tokenDetailsFromProvider } from "@oasisprotocol/demo-voting-contracts";
+import type { PollManager, Poll, AclOptionsXchain, TokenInfo } from '@oasisprotocol/demo-voting-contracts';
 import {
   usePollManager,
   useGaslessVoting,
   usePollManagerWithSigner
 } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
-import type { Poll, AclOptionsXchain, TokenInfo } from '../types';
 
 
 import AppButton from '@/components/AppButton.vue';
@@ -21,8 +20,8 @@ import UncheckedIcon from '@/components/UncheckedIcon.vue';
 import SuccessInfo from '@/components/SuccessInfo.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 import PollDetailsLoader from '@/components/PollDetailsLoader.vue';
+
 import { Pinata, decryptJSON, abbrAddr, randomchoice } from '@/utils';
-import { xchainRPC, fetchStorageProof, tokenDetailsFromProvider } from "../xchain";
 import { useRouter } from 'vue-router';
 
 const props = defineProps<{ id: string }>();
@@ -386,6 +385,7 @@ onMounted(async () => {
           Only token holders of a cross-chain token may vote on this poll:<br /><br />
             Address: <b>{{ xchainOptions?.xchain.address }}</b><br />
             Chain ID: <b>{{ xchainOptions?.xchain.chainId }}</b><br />
+            Slot: <b>{{ xchainOptions?.xchain.slot }}</b><br />
             Snapshot Block: <b>{{ xchainOptions?.xchain.blockHash }}</b><br />
         </div>
 

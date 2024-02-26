@@ -70,7 +70,7 @@ declare global {
 
 export const useEthereumStore = defineStore('ethereum', () => {
   const signer = shallowRef<JsonRpcSigner | undefined>(undefined);
-  const provider = sapphireWrap(new JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any'));
+  const provider = sapphireWrap(new JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any')) as JsonRpcProvider;
   const network = ref(Network.FromConfig);
   const address = ref<string | undefined>();
   const status = ref(ConnectionStatus.Unknown);
