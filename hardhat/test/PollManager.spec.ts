@@ -85,7 +85,7 @@ describe("PollManager", function () {
     ]
   });
 
-  it.skip("Proposals and pagination", async function () {
+  it("Proposals and pagination", async function () {
     const ap_before = await pm.getActiveProposals(0, 0);
     const pp_before = await pm.getPastProposals(0, 0);
     expect(pp_before.out_proposals.length).eq(0);
@@ -120,7 +120,7 @@ describe("PollManager", function () {
     // They get added to the top of the 'past proposals' list
   });
 
-  it.skip('Test TokenACL', async function () {
+  it('Test TokenACL', async function () {
     const factory_TestToken = await ethers.getContractFactory('TestToken');
     const contract_TestToken = await factory_TestToken.deploy();
     contract_TestToken.waitForDeployment();
@@ -160,7 +160,7 @@ describe("PollManager", function () {
     }
   });
 
-  it.skip('Test StorageProof ACL', async function () {
+  it('Test StorageProof ACL', async function () {
     // This test requires impersonation
     if ((await ethers.provider.getNetwork()).chainId != 1337n) {
       this.skip();
@@ -206,7 +206,7 @@ describe("PollManager", function () {
     await vote_tx.wait();
   });
 
-  it.skip('AccountProof RLP regression 1', async function () {
+  it('AccountProof RLP regression 1', async function () {
     // Tests a regression in RLP.sol discovered with real data
     const blockHash = '0x65b1912b4df1ccbae81b9cf6dbcc568392f85a8f62d20fb890293b2e8b621197';
     const headerRlpBytes = '0xf90267a0842c1e68ee0492091ee6a0c7c6ccb86e3a9aaee056927c9d68489f8d3f2d939da01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347940000000000000000000000000000000000000000a0084b78fb5fff36e4a09daa9fa51a03ef975b62cf9c482f909b7246ebda66aa23a0ddc7c735b57eb79cf0499c0acb433f6c0cf62c8e7ec3516086f3fc013dac9247a073c0c41ab4ea76069d2f07e7080a13b6b9af1400937d31a408a498549dd9fcfab9010006000000000008050000000000002000040000000010040000008400000000000000000000010000280000100208a0002000880021a0801010048000000402040004000240019008021004084020008090400000000400000401000020010000180080800280000000018001000008000800200280000082900000120040000000800004420000004008000000000118000000000002020800120000800000082000000080420000004001601008200020210011028000000001500800000840000000020000100080012000000000020008000020208a004015a80110006000002804100c00062000010000001000000a281400009020000000000001100000088402bcdc1484013477e7831a864b8465cd8a6ab869d88301020683626f7289676f312e32302e3134856c696e757800000000000000c780c5c0c0c0c0c00ac6fe0c8446fbf431ea4df2695846f4479bc3fbeeaaae135b6b14127b22091943b2070a69d4ab8f277326461a5817d9b9b07b4ffd68672bc45a92381220767d01a000000000000000000000000000000000000000000000000000000000000000008800000000000000000f';
@@ -220,7 +220,7 @@ describe("PollManager", function () {
     await tx2.wait();
   });
 
-  it.skip('Test Gasless Voting', async function () {
+  it('Test Gasless Voting', async function () {
     // This test requires RNG and runs on the Sapphire network only.
     // You can set up sapphire-dev image and run the test like this:
     // docker run -it -p8545:8545 -p8546:8546 ghcr.io/oasisprotocol/sapphire-dev -to 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
@@ -266,11 +266,9 @@ describe("PollManager", function () {
   });
 
   it('Gasless Voting with Storage Proof', async function () {
-    /*
     if ((await ethers.provider.getNetwork()).chainId == 1337n) {
       this.skip();
     }
-    */
 
     const mumbai = new JsonRpcProvider('https://polygon-mumbai.g.alchemy.com/v2/g4qVlKDewH8F19bv47GB1Iq3Ca_XxWhN');
     const mumbai_height = await mumbai.getBlockNumber();
