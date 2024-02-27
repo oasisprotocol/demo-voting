@@ -60,12 +60,9 @@ onMounted(async () => {
     @click="connectWallet"
   >
     <span class="account-picker-content" v-if="!connecting && eth.address">
-      <JazzIcon :size="isXlScreen ? 60 : 30" :address="eth.address" />
+      <JazzIcon :size="isXlScreen ? 30 : 30" :address="eth.address" />
       <span class="font-mono font-bold">
         <abbr :title="eth.address" class="block no-underline">{{ abbrAddr(eth.address) }}</abbr>
-        <span v-if="isXlScreen" class="font-normal" :class="{ 'unk-net': unkNet }">{{
-          netName
-        }}</span>
       </span>
     </span>
     <span class="account-picker-content" v-else-if="!isMetaMaskInstalled">

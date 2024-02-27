@@ -635,8 +635,8 @@ async function doCreatePoll(): Promise<string> {
                 </span>
               </label>
               <input type="text" id="xchain-addr" v-model="xchain_addr" />
-              <div v-if="!xchain_addr_valid">
-                Not valid!
+              <div v-if="!xchain_addr_valid && xchain_addr">
+                Is not a valid token on chain!
               </div>
             </div><!-- / Token or DAO -->
             <div class="mb-5 pl-5" v-if="xchain_addr_valid">
