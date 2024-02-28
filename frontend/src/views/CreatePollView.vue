@@ -634,7 +634,7 @@ async function doCreatePoll(): Promise<string> {
                   Address<CheckIcon v-if="xchain_addr_valid" />
                 </span>
               </label>
-              <input type="text" id="xchain-addr" v-model="xchain_addr" />
+              <input type="text" id="xchain-addr" v-model="xchain_addr" placeholder="Token address on chain"/>
               <div v-if="!xchain_addr_valid && xchain_addr">
                 Is not a valid token on chain!
               </div>
@@ -645,7 +645,7 @@ async function doCreatePoll(): Promise<string> {
                   Holder<CheckIcon v-if="xchain_holder_valid" />
                 </span>
               </label>
-              <input type="text" id="xchain-holder" v-model="xchain_holder" />
+              <input type="text" id="xchain-holder" v-model="xchain_holder" placeholder="Wallet address of a token holder"/>
             </div><!-- / Token or DAO -->
             <div class="mb-5 pl-5" v-if="xchain_holder_valid">
               <label for="xchain-slot">
@@ -653,7 +653,7 @@ async function doCreatePoll(): Promise<string> {
                   Storage Slot<CheckIcon v-if="(xchain_holder_balance??0) > 0" />
                 </span>
               </label>
-              <input type="text" id="xchain-slot" v-model="xchain_slot" />
+              <input type="text" id="xchain-slot" v-model="xchain_slot" placeholder="Solidity storage slot"/>
               <span>
                 {{ (xchain_holder_balance??0) > 0 ? `NOTE. Account holds a balance of ${xchain_holder_balance }` : '' }}
               </span>
@@ -666,7 +666,7 @@ async function doCreatePoll(): Promise<string> {
                   Refresh block
                 </button>
               </label>
-              <input type="text" id="xchain-hash" v-model="xchain_hash" />
+              <input type="text" id="xchain-hash" v-model="xchain_hash" placeholder="Hash of block for snapshot"/>
               <span>
                 {{ (xchain_height??0) > 0 ? `NOTE. Block height is ${ xchain_height }` : '' }}
               </span>
