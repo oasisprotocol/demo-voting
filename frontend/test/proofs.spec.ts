@@ -6,7 +6,7 @@ import { hexlify } from 'ethers';
 
 describe('Proofs', function () {
   it('Decode Block Headers', async () => {
-    for( let [k,v] of Object.entries(BLOCK_HEADERS) ) {
+    for (const [k, v] of Object.entries(BLOCK_HEADERS)) {
       // Lets make sure all the hard-coded block headers can decode
       const header = decodeBlockHeaderRlp(v);
       expect(header.number).toBeGreaterThan(0);
@@ -19,12 +19,14 @@ describe('Proofs', function () {
     const key = storageProof[0].key;
     const trie = new Trie({ useKeyHashing: true });
 
-    await trie.fromProof(
-      storageProof[0].proof.map((p) => hexToBytes(p))
-    );
+    await trie.fromProof(storageProof[0].proof.map((p) => hexToBytes(p)));
 
     const proof = await trie.createProof(hexToBytes(key));
-    const value = await trie.verifyProof(hexToBytes(STORAGE_PROOF_RESPONSE.storageHash), hexToBytes(key), proof);
+    const value = await trie.verifyProof(
+      hexToBytes(STORAGE_PROOF_RESPONSE.storageHash),
+      hexToBytes(key),
+      proof,
+    );
 
     expect(value).not.toBeNull();
     expect(bytesToHex(encode(storageProof[0].value))).toEqual(bytesToHex(value!!));

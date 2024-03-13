@@ -15,9 +15,15 @@ import { usePollManager, usePollManagerWithSigner } from '../contracts';
 import { useEthereumStore } from '../stores/ethereum';
 import { computedAsync } from '../utils';
 
-import { fetchAccountProof, getBlockHeaderRLP, guessStorageSlot,
-         isERCTokenContract, tokenDetailsFromProvider, xchain_ChainNamesToChainId,
-         xchainRPC } from "@oasisprotocol/demo-voting-contracts";
+import {
+  fetchAccountProof,
+  getBlockHeaderRLP,
+  guessStorageSlot,
+  isERCTokenContract,
+  tokenDetailsFromProvider,
+  xchain_ChainNamesToChainId,
+  xchainRPC,
+} from '@oasisprotocol/demo-voting-contracts';
 
 const eth = useEthereumStore();
 const dao = usePollManager();
@@ -35,19 +41,18 @@ const choices = ref<Array<{ key: number; value: string }>>(
 // Subsidy management
 const hasSubsidy = ref(false);
 const subsidyAmountStr = ref('');
-const subsidyAmount = ref<bigint|undefined>(undefined);
+const subsidyAmount = ref<bigint | undefined>(undefined);
 const isSubsidyValid = computed(() => {
-  if( toValue(hasSubsidy) ) {
+  if (toValue(hasSubsidy)) {
     const amountStr = subsidyAmountStr.value;
-    if( ! amountStr ) {
+    if (!amountStr) {
       subsidyAmount.value = undefined;
       return false;
     }
     try {
       subsidyAmount.value = parseEther(amountStr);
       return true;
-    }
-    catch(e:any) {
+    } catch (e: any) {
       subsidyAmount.value = undefined;
       return false;
     }
@@ -63,34 +68,32 @@ const acl_allowList = import.meta.env.VITE_CONTRACT_ACL_VOTERALLOWLIST;
 const acl_xchain = import.meta.env.VITE_CONTRACT_ACL_STORAGEPROOF;
 const chosenPollACL = ref(acl_allowAll);
 
-
 // Allow list ACL stuff
 const acl_allowList_addressesStr = ref('');
 const acl_allowList_addresses = computed(() => {
   // Split by newlines and commas, trim everything
   const in_addrs = toValue(acl_allowList_addressesStr)
-                    .split("\n")
-                    .flatMap(x => x.split(","))
-                    .flatMap(x => x.split(" "))
-                    .map(x => x.trim())
-                    .filter(x => x.length > 0);
+    .split('\n')
+    .flatMap((x) => x.split(','))
+    .flatMap((x) => x.split(' '))
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
   //
   // Validate all extracted addresses
-  let invalid:Record<string,string>|undefined = {};
+  let invalid: Record<string, string> | undefined = {};
   let addrs = [];
   let hasInvalid = false;
-  for( const x of in_addrs ) {
+  for (const x of in_addrs) {
     try {
       addrs.push(getAddress(x));
-    }
-    catch(e:any) {
-      if( e.code == 'INVALID_ARGUMENT' ) {
+    } catch (e: any) {
+      if (e.code == 'INVALID_ARGUMENT') {
         invalid[x] = e.shortMessage;
         hasInvalid = true;
       }
     }
   }
-  if( ! hasInvalid ) {
+  if (!hasInvalid) {
     invalid = undefined;
   }
   return { addrs, invalid };
@@ -98,28 +101,27 @@ const acl_allowList_addresses = computed(() => {
 
 // Sapphire token holder ACL stuff
 const token_addr = ref<string>('');
-const token_error = computed<string|undefined>(() => {
+const token_error = computed<string | undefined>(() => {
   const v = toValue(token_addr);
-  if( v ) {
+  if (v) {
     try {
       getAddress(v);
-    }
-    catch(e:any) {
-      if( e.code == 'INVALID_ARGUMENT' ) {
+    } catch (e: any) {
+      if (e.code == 'INVALID_ARGUMENT') {
         return e.shortMessage;
       }
     }
   }
 });
-const token_valid = computed(()=> {
+const token_valid = computed(() => {
   return toValue(token_addr) && toValue(token_error) === undefined;
 });
 const token_details = computedAsync(async () => {
-  if( ! toValue(token_valid) ) {
+  if (!toValue(token_valid)) {
     return;
   }
   const addr = toValue(token_addr);
-  if( addr ) {
+  if (addr) {
     return await tokenDetailsFromProvider(addr, eth.provider as unknown as JsonRpcProvider);
   }
 });
@@ -135,9 +137,9 @@ const xchain_holder_balance = ref<bigint>();
 const xchain_holder_valid = ref<boolean>(false);
 const xchain_slot = ref<number>();
 const xchain_slot_valid = ref<boolean>(false);
-const xchain_rpc = computed<JsonRpcProvider|undefined>(() => {
+const xchain_rpc = computed<JsonRpcProvider | undefined>(() => {
   const chainId = toValue(xchain_chainId);
-  if( chainId ) {
+  if (chainId) {
     return xchainRPC(chainId);
   }
 });
@@ -147,14 +149,13 @@ watch(xchain_addr, async (xchain_addr) => {
   try {
     addr = getAddress(toValue(xchain_addr));
     console.log('Got addr', addr);
-  }
-  catch(e) {
+  } catch (e) {
     xchain_addr_valid.value = false;
     return;
   }
 
   const rpc = toValue(xchain_rpc);
-  if( ! rpc ) {
+  if (!rpc) {
     return;
   }
 
@@ -164,17 +165,16 @@ watch(xchain_addr, async (xchain_addr) => {
       xchain_addr_valid.value = true;
       return;
     }
-  }
-  catch( e:any )   {
+  } catch (e: any) {
     console.log('xchain_addr is not token!');
   }
 
   xchain_addr_valid.value = false;
-})
+});
 
 watch(xchain_holder, async (xchain_holder) => {
   const rpc = toValue(xchain_rpc);
-  if( rpc && toValue(xchain_addr_valid) ) {
+  if (rpc && toValue(xchain_addr_valid)) {
     const addr = toValue(xchain_addr);
     const holder = toValue(xchain_holder);
     const slot = await guessStorageSlot(rpc, addr, holder);
@@ -185,18 +185,18 @@ watch(xchain_holder, async (xchain_holder) => {
       xchain_slot.value = slot.index;
       xchain_slot_valid.value = true;
 
-      if( ! xchain_hash.value ) {
+      if (!xchain_hash.value) {
         await xchain_refresh();
       }
     }
   }
-})
+});
 
 // Retrieve latest block hash from the chain
 async function xchain_refresh() {
   const rpc = toValue(xchain_rpc);
   const block = await rpc!.getBlock('latest');
-  if( block && block.hash ) {
+  if (block && block.hash) {
     xchain_hash.value = block.hash;
     xchain_height.value = block.number;
     return block.hash;
@@ -207,19 +207,19 @@ async function xchain_refresh() {
 const hasExpiration = ref(false);
 const expirationTimeString = ref('');
 
-const expirationTime = computed<Date|undefined>(() => {
+const expirationTime = computed<Date | undefined>(() => {
   const ets = toValue(expirationTimeString);
-  if( ! ets ) {
+  if (!ets) {
     return undefined;
   }
-  const x = new Date(ets)
+  const x = new Date(ets);
   return !isNaN(x.valueOf()) ? x : undefined;
 });
 
-const expirationIsInPast = computed<boolean|undefined>(()=>{
-  if( hasExpiration.value ) {
-    if( expirationTime.value !== undefined ) {
-      if( expirationTime.value < new Date() ) {
+const expirationIsInPast = computed<boolean | undefined>(() => {
+  if (hasExpiration.value) {
+    if (expirationTime.value !== undefined) {
+      if (expirationTime.value < new Date()) {
         return true;
       }
       return false;
@@ -230,10 +230,10 @@ const expirationIsInPast = computed<boolean|undefined>(()=>{
 
 /// false if `has expiration` checked but invalid or historic date
 const isDateValid = computed(() => {
-  if( toValue(hasExpiration) ) {
+  if (toValue(hasExpiration)) {
     const et = toValue(expirationTime);
-    if( et !== undefined ) {
-      if( et > new Date() ) {
+    if (et !== undefined) {
+      if (et > new Date()) {
         return true;
       }
     }
@@ -244,8 +244,14 @@ const isDateValid = computed(() => {
 
 const canCreatePoll = computed(() => {
   const acl = toValue(chosenPollACL);
-  if( acl == acl_xchain ) {
-    return !toValue(isLoading) && toValue(isDateValid) && toValue(isSubsidyValid) && toValue(xchain_addr_valid) && toValue(xchain_holder_valid && toValue(xchain_slot));
+  if (acl == acl_xchain) {
+    return (
+      !toValue(isLoading) &&
+      toValue(isDateValid) &&
+      toValue(isSubsidyValid) &&
+      toValue(xchain_addr_valid) &&
+      toValue(xchain_holder_valid.value && toValue(xchain_slot))
+    );
   }
 
   return !toValue(isLoading) && toValue(isDateValid) && toValue(isSubsidyValid);
@@ -281,50 +287,47 @@ async function createPoll(e: Event): Promise<void> {
 }
 
 /// Returns the `data` parameter used to initialize the ACL when creating a poll
-async function getACLOptions(): Promise<[string,AclOptions]> {
+async function getACLOptions(): Promise<[string, AclOptions]> {
   const acl = toValue(chosenPollACL);
   const abi = AbiCoder.defaultAbiCoder();
-  if( acl == acl_allowAll )
-  {
+  if (acl == acl_allowAll) {
     return [
       '0x', // Empty bytes is passed
       {
         address: acl,
-        options: {allowAll: true},
-      }
+        options: { allowAll: true },
+      },
     ];
   }
 
-  if( acl == acl_tokenHolder )
-  {
+  if (acl == acl_tokenHolder) {
     const addr = toValue(token_addr);
     return [
-      abi.encode(["address"], [addr]),
+      abi.encode(['address'], [addr]),
       {
         address: acl,
-        options: {token:addr}
-      }
+        options: { token: addr },
+      },
     ];
   }
 
-  if( acl == acl_allowList )
-  {
-    const {addrs, invalid} = toValue(acl_allowList_addresses);
-    if( invalid ) {
+  if (acl == acl_allowList) {
+    const { addrs, invalid } = toValue(acl_allowList_addresses);
+    if (invalid) {
       console.log('Invalid is', invalid);
       console.log('Addrs is', addrs);
       throw new Error('Cannot setup allow list while invalid entries exist');
     }
     return [
-      abi.encode(["address[]"], [addrs]),
+      abi.encode(['address[]'], [addrs]),
       {
         address: acl,
-        options: {allowList: true}
-      }
+        options: { allowList: true },
+      },
     ];
   }
 
-  if( acl == acl_xchain ) {
+  if (acl == acl_xchain) {
     const chainId = toValue(xchain_chainId);
     const rpc = xchainRPC(chainId);
     const blockHash = toValue(xchain_hash);
@@ -334,17 +337,22 @@ async function getACLOptions(): Promise<[string,AclOptions]> {
     console.log('headerRlpBytes', headerRlpBytes);
     console.log('rlpAccountProof', rlpAccountProof);
     return [
-      abi.encode(["tuple(tuple(bytes32,address,uint256),bytes,bytes)"], [
-        [ // PollCreationOptions
-          [ // PollSettings
-            blockHash,
-            contractAddress,
-            toValue(xchain_slot)
+      abi.encode(
+        ['tuple(tuple(bytes32,address,uint256),bytes,bytes)'],
+        [
+          [
+            // PollCreationOptions
+            [
+              // PollSettings
+              blockHash,
+              contractAddress,
+              toValue(xchain_slot),
+            ],
+            headerRlpBytes,
+            rlpAccountProof,
           ],
-          headerRlpBytes,
-          rlpAccountProof
-        ]
-      ]),
+        ],
+      ),
       {
         address: acl,
         options: {
@@ -352,10 +360,10 @@ async function getACLOptions(): Promise<[string,AclOptions]> {
             chainId,
             blockHash,
             address: contractAddress,
-            slot: toValue(xchain_slot)!
-          }
-        }
-      }
+            slot: toValue(xchain_slot)!,
+          },
+        },
+      },
     ];
   }
 
@@ -374,11 +382,11 @@ async function doCreatePoll(): Promise<string> {
     choices: choices.value.map((c) => c.value),
     options: {
       publishVotes: publishVotes.value,
-      closeTimestamp: toValue(expirationTime) ? (toValue(expirationTime)!.valueOf() / 1000) : 0,
+      closeTimestamp: toValue(expirationTime) ? toValue(expirationTime)!.valueOf() / 1000 : 0,
     },
-    acl: aclOptions
+    acl: aclOptions,
   };
-  const {key,cipherbytes} = encryptJSON(poll);
+  const { key, cipherbytes } = encryptJSON(poll);
 
   const ipfsHash = await Pinata.pinData(cipherbytes);
   console.log('Poll ipfsHash', ipfsHash);
@@ -389,7 +397,7 @@ async function doCreatePoll(): Promise<string> {
     numChoices: choices.value.length,
     publishVotes: poll.options.publishVotes,
     closeTimestamp: poll.options.closeTimestamp,
-    acl: toValue(chosenPollACL)
+    acl: toValue(chosenPollACL),
   };
 
   console.log('doCreatePoll: Using direct transaction to create proposal');
@@ -399,14 +407,10 @@ async function doCreatePoll(): Promise<string> {
   //console.log('doCreatePoll: creating proposal', proposalId);
 
   const daoSigner = usePollManagerWithSigner();
-  const createProposalTx = await daoSigner.create(
-    proposalParams,
-    aclData,
-    {
-      // Provide additional subsidy
-      value: toValue(subsidyAmount) ?? 0n
-    }
-  );
+  const createProposalTx = await daoSigner.create(proposalParams, aclData, {
+    // Provide additional subsidy
+    value: toValue(subsidyAmount) ?? 0n,
+  });
   console.log('doCreatePoll: creating proposal tx', createProposalTx.hash);
 
   const receipt = (await createProposalTx.wait())!;
@@ -443,7 +447,14 @@ async function doCreatePoll(): Promise<string> {
 
       <form @submit="createPoll">
         <div class="form-group">
-          <input type="text" id="question" class="peer" placeholder=" " v-model="pollName" required />
+          <input
+            type="text"
+            id="question"
+            class="peer"
+            placeholder=" "
+            v-model="pollName"
+            required
+          />
           <label
             for="question"
             class="peer-focus:text-primaryDark peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-5"
@@ -535,18 +546,17 @@ async function doCreatePoll(): Promise<string> {
                 <input type="datetime-local" v-model="expirationTimeString" />
 
                 <div v-if="expirationTime" class="mt-3 text-gray-500">
-                  {{expirationTime}}
+                  {{ expirationTime }}
 
                   <div v-if="expirationIsInPast" class="mt-2">
                     <b>Poll close date must be in the future!</b>
                   </div>
                 </div>
               </div>
-              <div v-else>
-                Set poll closing date & time
-              </div>
+              <div v-else>Set poll closing date & time</div>
             </label>
-          </div><!-- / Expiration -->
+          </div>
+          <!-- / Expiration -->
 
           <!-- Subsidy -->
           <div class="flex mb-5 pl-5">
@@ -560,30 +570,26 @@ async function doCreatePoll(): Promise<string> {
             <label class="ml-3 text-base text-gray-900" for="has-subsidy">
               Subsidise votes <small>(let people submit votes without paying gas)</small>
 
-              <span v-if="hasSubsidy">
-                <input v-model="subsidyAmountStr" type="text" /> ROSE
-              </span>
+              <span v-if="hasSubsidy"> <input v-model="subsidyAmountStr" type="text" /> ROSE </span>
             </label>
-          </div><!-- / Subsidy -->
+          </div>
+          <!-- / Subsidy -->
 
           <!-- ACL -->
           <div class="flex mb-5 pl-5">
-            <label for="poll-acl" class="mr-3 text-base text-gray-900 p-3">
-              ACL:
-            </label>
+            <label for="poll-acl" class="mr-3 text-base text-gray-900 p-3"> ACL: </label>
             <select id="poll-acl" class="p-3" v-model="chosenPollACL">
               <option :value="acl_allowAll">Allow All</option>
               <option :value="acl_tokenHolder">Holds Token on Sapphire</option>
               <option :value="acl_allowList">Address Whitelist</option>
               <option :value="acl_xchain">Cross-Chain DAO</option>
             </select>
-          </div><!-- / ACL -->
+          </div>
+          <!-- / ACL -->
 
           <div v-if="toValue(chosenPollACL) == acl_tokenHolder">
             <div class="mb-5 pl-5">
-              <label for="holder-addr">
-                Token Address:
-              </label>
+              <label for="holder-addr"> Token Address: </label>
               <input type="text" id="holder-addr" v-model="token_addr" />
 
               <!-- TODO: show token details -->
@@ -597,17 +603,15 @@ async function doCreatePoll(): Promise<string> {
                 </span>
               </div>
             </div>
-
-          </div><!-- / Token Holder ACL-->
+          </div>
+          <!-- / Token Holder ACL-->
 
           <div v-if="toValue(chosenPollACL) == acl_allowList">
             <label for="acl-allowlist">
               Allowed Addresses:
               <small>(comma and/or newline separated)</small>
             </label>
-            <textarea
-                id="acl-allowlist"
-                v-model="acl_allowList_addressesStr"></textarea>
+            <textarea id="acl-allowlist" v-model="acl_allowList_addressesStr"></textarea>
 
             <div v-if="acl_allowList_addresses.invalid">
               <ul>
@@ -616,80 +620,105 @@ async function doCreatePoll(): Promise<string> {
                 </li>
               </ul>
             </div>
-          </div><!-- / Allow List ACL-->
+          </div>
+          <!-- / Allow List ACL-->
 
           <div v-if="toValue(chosenPollACL) == acl_xchain">
             <div class="mb-5 pl-5">
-              <label for="xchain-chainid" class="mr-3 text-base text-gray-900 p-3">
-                Chain:
-              </label>
+              <label for="xchain-chainid" class="mr-3 text-base text-gray-900 p-3"> Chain: </label>
               <select v-model="xchain_chainId" id="xchain-chainid" class="p-3">
                 <option value="">-- Custom --</option>
-                <option v-for="(key, item) in xchain_ChainNamesToChainId" :value="key">{{ item }} ({{ key }})</option>
+                <option v-for="(key, item) in xchain_ChainNamesToChainId" :value="key">
+                  {{ item }} ({{ key }})
+                </option>
               </select>
-            </div><!-- / Select Chain -->
+            </div>
+            <!-- / Select Chain -->
             <div class="mb-5 pl-5">
               <label for="xchain-addr">
-                <span class="flex gap-2">
-                  Address<CheckIcon v-if="xchain_addr_valid" />
-                </span>
+                <span class="flex gap-2"> Address<CheckIcon v-if="xchain_addr_valid" /> </span>
               </label>
-              <input type="text" id="xchain-addr" v-model="xchain_addr" placeholder="Token address on chain"/>
-              <div v-if="!xchain_addr_valid && xchain_addr">
-                Is not a valid token on chain!
-              </div>
-            </div><!-- / Token or DAO -->
+              <input
+                type="text"
+                id="xchain-addr"
+                v-model="xchain_addr"
+                placeholder="Token address on chain"
+              />
+              <div v-if="!xchain_addr_valid && xchain_addr">Is not a valid token on chain!</div>
+            </div>
+            <!-- / Token or DAO -->
             <div class="mb-5 pl-5" v-if="xchain_addr_valid">
               <label for="xchain-holder">
-                <span class="flex gap-2">
-                  Holder<CheckIcon v-if="xchain_holder_valid" />
-                </span>
+                <span class="flex gap-2"> Holder<CheckIcon v-if="xchain_holder_valid" /> </span>
               </label>
-              <input type="text" id="xchain-holder" v-model="xchain_holder" placeholder="Wallet address of a token holder"/>
-            </div><!-- / Token or DAO -->
+              <input
+                type="text"
+                id="xchain-holder"
+                v-model="xchain_holder"
+                placeholder="Wallet address of a token holder"
+              />
+            </div>
+            <!-- / Token or DAO -->
             <div class="mb-5 pl-5" v-if="xchain_holder_valid">
               <label for="xchain-slot">
                 <span class="flex gap-2">
-                  Storage Slot<CheckIcon v-if="(xchain_holder_balance??0) > 0" />
+                  Storage Slot<CheckIcon v-if="(xchain_holder_balance ?? 0) > 0" />
                 </span>
               </label>
-              <input type="text" id="xchain-slot" v-model="xchain_slot" placeholder="Solidity storage slot"/>
+              <input
+                type="text"
+                id="xchain-slot"
+                v-model="xchain_slot"
+                placeholder="Solidity storage slot"
+              />
               <span>
-                {{ (xchain_holder_balance??0) > 0 ? `NOTE. Account holds a balance of ${xchain_holder_balance }` : '' }}
+                {{
+                  (xchain_holder_balance ?? 0) > 0
+                    ? `NOTE. Account holds a balance of ${xchain_holder_balance}`
+                    : ''
+                }}
               </span>
-            </div><!-- / X-Chain Slot -->
+            </div>
+            <!-- / X-Chain Slot -->
             <div class="mb-5 pl-5" v-if="xchain_holder_valid">
               <label for="xchain-hash">
-                <button @click.prevent="xchain_refresh"
+                <button
+                  @click.prevent="xchain_refresh"
                   v-if="xchain_chainId"
-                  class="bg-blue-500 rounded p-1 px-2 text-white">
+                  class="bg-blue-500 rounded p-1 px-2 text-white"
+                >
                   Refresh block
                 </button>
               </label>
-              <input type="text" id="xchain-hash" v-model="xchain_hash" placeholder="Hash of block for snapshot"/>
+              <input
+                type="text"
+                id="xchain-hash"
+                v-model="xchain_hash"
+                placeholder="Hash of block for snapshot"
+              />
               <span>
-                {{ (xchain_height??0) > 0 ? `NOTE. Block height is ${ xchain_height }` : '' }}
+                {{ (xchain_height ?? 0) > 0 ? `NOTE. Block height is ${xchain_height}` : '' }}
               </span>
-            </div><!-- / Block Hash -->
-          </div><!-- / X-Chain ACL -->
-        </div><!-- / Extended options -->
+            </div>
+            <!-- / Block Hash -->
+          </div>
+          <!-- / X-Chain ACL -->
+        </div>
+        <!-- / Extended options -->
 
         <div class="flex justify-center">
           <div v-if="eth.isHomeChain">
             <AppButton type="submit" variant="primary" :disabled="!canCreatePoll">
               <span v-if="isLoading">Creating…</span>
-              <span v-else>
-                Create Poll
-              </span>
+              <span v-else> Create Poll </span>
             </AppButton>
           </div>
           <div v-else>
             <section class="pt-5">
               <h2 class="capitalize text-white text-2xl font-bold mb-4">Wrong Web3 Chain!</h2>
               <p class="text-white text-base mb-10">
-                In order to continue to use the app, please switch your Web3
-                wallet to the correct chain, by clicking on the "Connect" button
-                below.
+                In order to continue to use the app, please switch your Web3 wallet to the correct
+                chain, by clicking on the "Connect" button below.
               </p>
 
               <div class="flex justify-center">
@@ -721,12 +750,10 @@ async function doCreatePoll(): Promise<string> {
   </div>
   <div v-else>
     <section class="pt-5">
-      <h2 class="capitalize text-white text-2xl font-bold mb-4">
-        No Web3 Wallet Connected!
-      </h2>
+      <h2 class="capitalize text-white text-2xl font-bold mb-4">No Web3 Wallet Connected!</h2>
       <p class="text-white text-base mb-10">
-        In order to continue to use the app, please connect your Web3 wallet and
-        switch to the correct chain, by clicking on the "Connect" button below.
+        In order to continue to use the app, please connect your Web3 wallet and switch to the
+        correct chain, by clicking on the "Connect" button below.
       </p>
 
       <div class="flex justify-center">

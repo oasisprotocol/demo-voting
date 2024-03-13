@@ -1,6 +1,15 @@
 import detectEthereumProvider from '@metamask/detect-provider';
-import { wrap as sapphireWrap, NETWORKS as SAPPHIRE_NETWORKS } from '@oasisprotocol/sapphire-paratime';
-import { toQuantity, JsonRpcProvider, JsonRpcApiProvider, JsonRpcSigner, BrowserProvider } from 'ethers';
+import {
+  wrap as sapphireWrap,
+  NETWORKS as SAPPHIRE_NETWORKS,
+} from '@oasisprotocol/sapphire-paratime';
+import {
+  toQuantity,
+  JsonRpcProvider,
+  JsonRpcApiProvider,
+  JsonRpcSigner,
+  BrowserProvider,
+} from 'ethers';
 import { defineStore } from 'pinia';
 import { computed, ref, shallowRef, toValue } from 'vue';
 import type { EIP1193Provider } from './eip1193';
@@ -22,13 +31,11 @@ export enum Network {
   FromConfig = parseInt(import.meta.env.VITE_NETWORK),
 }
 
-
 export enum ConnectionStatus {
   Unknown,
   Disconnected,
   Connected,
 }
-
 
 const networkNameMap: Record<Network, string> = {
   [Network.Unknown]: 'Unknown Network',
@@ -45,21 +52,18 @@ const networkNameMap: Record<Network, string> = {
   [Network.BscTestnet]: 'BSC Testnet',
 } as const;
 
-
 function networkFromChainId(chainId: number | string): Network {
   const id = typeof chainId === 'string' ? parseInt(chainId, 16) : chainId;
   if (Network[id]) return id as Network;
   return Network.Unknown;
 }
 
-
-export function networkName(network?: Network) : string {
+export function networkName(network?: Network): string {
   if (network && networkNameMap[network]) {
     return networkNameMap[network];
   }
   return networkNameMap[Network.Unknown];
 }
-
 
 declare global {
   interface Window {
@@ -67,22 +71,21 @@ declare global {
   }
 }
 
-
 export const useEthereumStore = defineStore('ethereum', () => {
   const signer = shallowRef<JsonRpcSigner | undefined>(undefined);
-  const provider = sapphireWrap(new JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any')) as JsonRpcProvider;
+  const provider = sapphireWrap(
+    new JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any'),
+  ) as JsonRpcProvider;
   const network = ref(Network.FromConfig);
   const address = ref<string | undefined>();
   const status = ref(ConnectionStatus.Unknown);
   const isSapphire = ref<boolean>(false);
-  const isHomeChain = computed<boolean>(() => toValue(network) == Network.FromConfig );
+  const isHomeChain = computed<boolean>(() => toValue(network) == Network.FromConfig);
 
-  async function _changeAccounts(accounts:string[])
-  {
-    if( accounts.length ) {
+  async function _changeAccounts(accounts: string[]) {
+    if (accounts.length) {
       status.value = ConnectionStatus.Connected;
-    }
-    else {
+    } else {
       status.value = ConnectionStatus.Disconnected;
       signer.value = undefined;
       network.value = Network.Unknown;
@@ -90,9 +93,8 @@ export const useEthereumStore = defineStore('ethereum', () => {
     }
   }
 
-
   detectEthereumProvider<EIP1193Provider>().then(async (ethProvider) => {
-    if( !ethProvider ) {
+    if (!ethProvider) {
       console.log('No EIP-1193 provider discovered using detectEthereumProvider');
       return;
     }
@@ -118,53 +120,53 @@ export const useEthereumStore = defineStore('ethereum', () => {
       console.log('disconnect');
       _changeAccounts([]);
     });
-    _changeAccounts(await ethProvider.request({method:'eth_accounts'}));
+    _changeAccounts(await ethProvider.request({ method: 'eth_accounts' }));
   });
 
-
-  async function getSigner (in_doConnect?:boolean, in_doSwitch?:boolean, in_account?:string) {
-    let l_signer : JsonRpcSigner | undefined;
-    let l_provider : JsonRpcApiProvider | undefined;
-    if( ! signer.value || (in_account && await signer.value.getAddress() != in_account) ) {
+  async function getSigner(in_doConnect?: boolean, in_doSwitch?: boolean, in_account?: string) {
+    let l_signer: JsonRpcSigner | undefined;
+    let l_provider: JsonRpcApiProvider | undefined;
+    if (!signer.value || (in_account && (await signer.value.getAddress()) != in_account)) {
       const ethProvider = await detectEthereumProvider<EIP1193Provider>();
-      if( ! ethProvider ) {
+      if (!ethProvider) {
         console.log('getSigner, detectEthereumProvider empty!!');
         return undefined;
       }
       l_provider = new BrowserProvider(ethProvider);
-    }
-    else {
+    } else {
       l_signer = signer.value;
-      if( l_signer ) {
+      if (l_signer) {
         l_provider = signer.value.provider;
       }
     }
 
     // With no provider, do nothing
-    if( ! l_provider ) {
+    if (!l_provider) {
       console.log('getSigner, no provider!');
       return;
     }
 
-    let l_accounts = await l_provider.send('eth_accounts', [])
+    let l_accounts = await l_provider.send('eth_accounts', []);
 
     // Check if we are already connecting before requesting accounts again
-    if( in_doConnect ) {
-      if( ! l_accounts.length ) {
+    if (in_doConnect) {
+      if (!l_accounts.length) {
         l_accounts = await l_provider.send('eth_requestAccounts', []);
         await _changeAccounts(l_accounts);
       }
     }
 
-    if( l_accounts.length ) {
+    if (l_accounts.length) {
       l_signer = await l_provider.getSigner(in_account);
     }
 
     // Check if we're requested to switch networks
     let l_network = networkFromChainId(await l_provider.send('eth_chainId', []));
-    if( in_doSwitch && (l_network != network.value || l_network != Network.FromConfig) ) {
+    if (in_doSwitch && (l_network != network.value || l_network != Network.FromConfig)) {
       try {
-        await l_provider.send('wallet_switchEthereumChain', [{ chainId: toQuantity(Network.FromConfig) }]);
+        await l_provider.send('wallet_switchEthereumChain', [
+          { chainId: toQuantity(Network.FromConfig) },
+        ]);
         l_network = Network.FromConfig;
       } catch (e: any) {
         // This error code indicates that the chain has not been added to MetaMask.
@@ -176,14 +178,14 @@ export const useEthereumStore = defineStore('ethereum', () => {
 
     // Sapphire signers are always wrapped
     const l_isSapphire = l_network in SAPPHIRE_NETWORKS;
-    if( l_isSapphire && l_signer ) {
+    if (l_isSapphire && l_signer) {
       l_signer = sapphireWrap(l_signer);
     }
 
     signer.value = l_signer;
     network.value = l_network;
     isSapphire.value = l_isSapphire;
-    if( l_accounts.length ) {
+    if (l_accounts.length) {
       address.value = l_accounts[0];
       status.value = ConnectionStatus.Connected;
     }
@@ -191,18 +193,15 @@ export const useEthereumStore = defineStore('ethereum', () => {
     return l_signer;
   }
 
-
   // Request that window.ethereum be connected to an account
   // Only sets `signer` value upon successful connection
-  async function connect()
-  {
-    await getSigner(true,true);
+  async function connect() {
+    await getSigner(true, true);
   }
 
-
   async function addNetwork(network: Network = Network.FromConfig) {
-    const eth = await detectEthereumProvider<EIP1193Provider>();;
-    if( ! eth ) {
+    const eth = await detectEthereumProvider<EIP1193Provider>();
+    if (!eth) {
       throw new Error('addNetwork detectEthereumProvider = null');
     }
 
@@ -250,11 +249,9 @@ export const useEthereumStore = defineStore('ethereum', () => {
     }
   }
 
-
-  async function switchNetwork(network: Network=Network.FromConfig) {
-    await getSigner(true,true);
+  async function switchNetwork(network: Network = Network.FromConfig) {
+    await getSigner(true, true);
   }
-
 
   return {
     signer,
@@ -265,7 +262,6 @@ export const useEthereumStore = defineStore('ethereum', () => {
     addNetwork,
     switchNetwork,
     isSapphire,
-    isHomeChain
+    isHomeChain,
   };
-
 });

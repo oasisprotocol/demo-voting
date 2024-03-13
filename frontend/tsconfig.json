@@ -9,9 +9,7 @@
     },
     "target": "es2020",
     "types": ["node", "jest"],
-    "verbatimModuleSyntax": false,
+    "verbatimModuleSyntax": false
   },
-  "references": [
-    {"path": "./tsconfig.config.json"},
-  ]
+  "references": [{ "path": "./tsconfig.config.json" }]
 }

@@ -36,8 +36,7 @@ async function fetchProposals(
     let result: FetchProposalResult;
     try {
       result = await fetcher(offset, FETCH_BATCH_SIZE);
-    }
-    catch (e: any) {
+    } catch (e: any) {
       console.error('failed to fetch proposals', e);
       break;
     }
@@ -47,10 +46,12 @@ async function fetchProposals(
         id = id.slice(2);
 
         try {
-          const params = decryptJSON(getBytes(proposal.params.ipfsSecret), await Pinata.fetchData(ipfsHash))
+          const params = decryptJSON(
+            getBytes(proposal.params.ipfsSecret),
+            await Pinata.fetchData(ipfsHash),
+          );
           proposalsMap[id] = { id, params, proposal } as FullProposal;
-        }
-        catch (e) {
+        } catch (e) {
           return console.error('failed to fetch proposal params from IPFS', e);
         }
       }),
@@ -65,7 +66,6 @@ async function fetchProposals(
 }
 
 onMounted(async () => {
-
   const acl = await usePollManagerACL();
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.ZeroAddress;
   canCreatePoll.value = await acl.value.canCreatePoll(await dao.value.getAddress(), userAddress);
@@ -73,12 +73,12 @@ onMounted(async () => {
   const { number: blockTag } = (await eth.provider.getBlock('latest'))!;
 
   await Promise.all([
-    fetchProposals((offset, batchSize) =>
-      dao.value.getActiveProposals(offset, batchSize),
-    ).then((proposalsMap) => {
-      activePolls.value = { ...proposalsMap };
-      isLoadingActive.value = false;
-    }),
+    fetchProposals((offset, batchSize) => dao.value.getActiveProposals(offset, batchSize)).then(
+      (proposalsMap) => {
+        activePolls.value = { ...proposalsMap };
+        isLoadingActive.value = false;
+      },
+    ),
     fetchProposals((offset, batchSize) => {
       return dao.value.getPastProposals(offset, batchSize, {
         blockTag,
@@ -87,12 +87,12 @@ onMounted(async () => {
       pastPolls.value = { ...proposalsMap };
       // Filter polls without votes
       await Promise.all(
-        Object.keys(pastPolls.value).map(async proposalId => {
+        Object.keys(pastPolls.value).map(async (proposalId) => {
           const voteCount: bigint[] = await dao.value.getVoteCounts('0x' + proposalId);
           if (voteCount[Number(pastPolls.value[proposalId].proposal.topChoice)] === 0n) {
             pastPolls.value[proposalId].empty = true;
           }
-        })
+        }),
       );
       isLoadingPast.value = false;
     }),

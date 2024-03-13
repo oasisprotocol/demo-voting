@@ -1,7 +1,17 @@
 import { computed, type ComputedRef } from 'vue';
 
-import { PollManager__factory, GaslessVoting__factory, IPollManagerACL__factory, IPollACL__factory } from '@oasisprotocol/demo-voting-contracts';
-import type { PollManager, GaslessVoting, IPollACL, IPollManagerACL } from '@oasisprotocol/demo-voting-contracts';
+import {
+  PollManager__factory,
+  GaslessVoting__factory,
+  IPollManagerACL__factory,
+  IPollACL__factory,
+} from '@oasisprotocol/demo-voting-contracts';
+import type {
+  PollManager,
+  GaslessVoting,
+  IPollACL,
+  IPollManagerACL,
+} from '@oasisprotocol/demo-voting-contracts';
 
 import { useEthereumStore } from './stores/ethereum';
 
@@ -17,7 +27,7 @@ export function usePollManager(): ComputedRef<PollManager> {
 export function usePollManagerWithSigner(): PollManager {
   const eth = useEthereumStore();
   const addr = import.meta.env.VITE_CONTRACT_POLLMANAGER;
-  if( ! eth.signer ) {
+  if (!eth.signer) {
     throw new Error('useDAOv1WithSigner, !eth.signer');
   }
   return PollManager__factory.connect(addr, eth.signer);

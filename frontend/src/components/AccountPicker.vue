@@ -42,12 +42,11 @@ const isXlScreen = useMedia('(min-width: 1280px)');
 onMounted(async () => {
   try {
     const provider = await detectEthereumProvider<EIP1193Provider>();
-    if( provider ) {
+    if (provider) {
       isMetaMaskInstalled.value = true;
     }
-  }
-  catch (err) {
-    console.error(err)
+  } catch (err) {
+    console.error(err);
     isMetaMaskInstalled.value = false;
   }
 });
@@ -55,7 +54,10 @@ onMounted(async () => {
 
 <template>
   <button
-    :class="{ 'cursor-default': !!eth.address, 'cursor-pointer': !eth.address || !isMetaMaskInstalled }"
+    :class="{
+      'cursor-default': !!eth.address,
+      'cursor-pointer': !eth.address || !isMetaMaskInstalled,
+    }"
     class="account-picker"
     @click="connectWallet"
   >

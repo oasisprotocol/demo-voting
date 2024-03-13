@@ -1,17 +1,31 @@
 <script setup lang="ts">
-import { ZeroAddress, ethers, formatEther, getBytes, TransactionReceipt,
-         parseEther, JsonRpcProvider, BytesLike, Transaction } from 'ethers';
+import {
+  ZeroAddress,
+  ethers,
+  formatEther,
+  getBytes,
+  TransactionReceipt,
+  parseEther,
+  JsonRpcProvider,
+  BytesLike,
+  Transaction,
+} from 'ethers';
 import { computed, onMounted, ref, toValue } from 'vue';
 
-import { IPollACL__factory, xchainRPC, fetchStorageProof, tokenDetailsFromProvider } from "@oasisprotocol/demo-voting-contracts";
-import type { PollManager, Poll, AclOptionsXchain, TokenInfo } from '@oasisprotocol/demo-voting-contracts';
 import {
-  usePollManager,
-  useGaslessVoting,
-  usePollManagerWithSigner
-} from '../contracts';
+  IPollACL__factory,
+  xchainRPC,
+  fetchStorageProof,
+  tokenDetailsFromProvider,
+} from '@oasisprotocol/demo-voting-contracts';
+import type {
+  PollManager,
+  Poll,
+  AclOptionsXchain,
+  TokenInfo,
+} from '@oasisprotocol/demo-voting-contracts';
+import { usePollManager, useGaslessVoting, usePollManagerWithSigner } from '../contracts';
 import { Network, useEthereumStore } from '../stores/ethereum';
-
 
 import AppButton from '@/components/AppButton.vue';
 import AppBadge from '@/components/AppBadge.vue';
@@ -48,7 +62,7 @@ const winningChoice = ref<bigint | undefined>(undefined);
 const selectedChoice = ref<bigint | undefined>();
 const existingVote = ref<bigint | undefined>(undefined);
 const voteCounts = ref<bigint[]>([]);
-const votes = ref<GetVotesReturnT>({out_count: 0n, out_voters: [], out_choices: []});
+const votes = ref<GetVotesReturnT>({ out_count: 0n, out_voters: [], out_choices: [] });
 let canClosePoll = ref<Boolean>(false);
 let canAclVote = ref<Boolean>(false);
 const gvAddrs = ref<string[]>([]);
@@ -59,8 +73,8 @@ const isTokenHolderACL = ref<boolean>(false);
 const aclTokenInfo = ref<TokenInfo>();
 
 const isXChainACL = ref<boolean>(false);
-const xchainOptions = ref<AclOptionsXchain|undefined>();
-const aclProof = ref<BytesLike>("");
+const xchainOptions = ref<AclOptionsXchain | undefined>();
+const aclProof = ref<BytesLike>('');
 const isWhitelistACL = ref<boolean>(false);
 
 const canVote = computed(() => {
@@ -78,7 +92,7 @@ const canSelect = computed(() => {
 });
 
 async function closeBallot(): Promise<void> {
-  await eth.switchNetwork();  // ensure we're on the correct network first!
+  await eth.switchNetwork(); // ensure we're on the correct network first!
   const signerDao = usePollManagerWithSigner();
   const tx = await signerDao.close(proposalId);
   console.log('Close proposal tx', tx);
@@ -90,11 +104,9 @@ async function closeBallot(): Promise<void> {
     else {
       isClosed.value = true;
     }
-  }
-  catch (e) {
-    console.log(e)
-  }
-  finally {
+  } catch (e) {
+    console.log(e);
+  } finally {
     isClosing.value = false;
   }
 }
@@ -106,8 +118,8 @@ async function vote(e: Event): Promise<void> {
     isLoading.value = true;
     await doVote();
     hasVoted.value = true;
-  //} catch (e: any) {
-  //  error.value = e.reason ?? e.message;
+    //} catch (e: any) {
+    //  error.value = e.reason ?? e.message;
   } finally {
     isLoading.value = false;
   }
@@ -121,8 +133,7 @@ async function doVote(): Promise<void> {
   const gv = (await gaslessVoting).value;
   let submitAndPay = true;
 
-  if (toValue(gvTotalBalance) > 0n)
-  {
+  if (toValue(gvTotalBalance) > 0n) {
     if (!eth.signer) {
       throw new Error('No signer!');
     }
@@ -162,7 +173,14 @@ async function doVote(): Promise<void> {
     // Submit voting request to get signed transaction
     const feeData = await eth.provider.getFeeData();
     console.log('doVote.gasless: constructing tx', 'gasPrice', feeData.gasPrice);
-    const tx = await gv.makeVoteTransaction(submitAddr, submitNonce, feeData.gasPrice!, request, toValue(aclProof), rsv);
+    const tx = await gv.makeVoteTransaction(
+      submitAddr,
+      submitNonce,
+      feeData.gasPrice!,
+      request,
+      toValue(aclProof),
+      rsv,
+    );
 
     // Submit pre-signed signed transaction
     let plain_resp;
@@ -174,13 +192,11 @@ async function doVote(): Promise<void> {
       plain_resp = await eth.provider.broadcastTransaction(tx);
       console.log('doVote.gasless: waiting for tx', plain_resp.hash);
       receipt = await eth.provider.waitForTransaction(plain_resp.hash);
-    }
-    catch( e:any ) {
-      if( (e.message as string).includes('insufficient balance to pay fees') ) {
+    } catch (e: any) {
+      if ((e.message as string).includes('insufficient balance to pay fees')) {
         submitAndPay = true;
         console.log('Insufficient balance!');
-      }
-      else {
+      } else {
         throw e;
       }
     }
@@ -190,25 +206,25 @@ async function doVote(): Promise<void> {
       // TODO: how can we tell if it failed due to out of gas?
       // Give them the option to re-submit their vote
       let tx_hash: string = '';
-      if( receipt ) {
+      if (receipt) {
         tx_hash = `\n\nFalied tx: ${receipt.hash}`;
       }
       console.log('Receipt is', receipt);
-      const result = confirm(`Error submitting from subsidy account, submit from your own account? ${tx_hash}`);
-      if( result ) {
+      const result = confirm(
+        `Error submitting from subsidy account, submit from your own account? ${tx_hash}`,
+      );
+      if (result) {
         submitAndPay = true;
+      } else {
+        throw new Error(`gasless voting failed: ${receipt}`);
       }
-      else {
-        throw new Error(`gasless voting failed: ${receipt}`)
-      }
-    }
-    else {
+    } else {
       console.log('doVote.gasless: success');
       submitAndPay = false;
     }
   }
 
-  if( submitAndPay ) {
+  if (submitAndPay) {
     console.log('doVote: casting vote using normal tx');
     await eth.switchNetwork(Network.FromConfig);
     const daoSigner = usePollManagerWithSigner();
@@ -221,28 +237,27 @@ async function doVote(): Promise<void> {
   existingVote.value = choice;
 }
 
-async function doTopup(addr:string)
-{
+async function doTopup(addr: string) {
   let result = prompt(`Topup voting subsidy account:\n\n  ${addr}\n\nAmount (in ROSE):`, '1');
-  if( ! result ) {
+  if (!result) {
     return;
   }
   result = result.trim();
   const amount = parseEther(result);
-  if( amount > 0n ) {
+  if (amount > 0n) {
     await eth.signer?.sendTransaction({
       to: addr,
       value: amount,
-      data: "0x"
-    })
+      data: '0x',
+    });
   }
 }
 
 onMounted(async () => {
-  const {active, params, topChoice} = await dao.value.PROPOSALS(proposalId);
-  if( params.acl === ZeroAddress ) {
+  const { active, params, topChoice } = await dao.value.PROPOSALS(proposalId);
+  if (params.acl === ZeroAddress) {
     console.log(`Empty params! No ACL, Poll ${proposalId} not found!`);
-    router.push({path:`/NotFound/poll/${props.id}`, replace: true});
+    router.push({ path: `/NotFound/poll/${props.id}`, replace: true });
     return;
   }
 
@@ -263,7 +278,11 @@ onMounted(async () => {
   const acl = IPollACL__factory.connect(params.acl, eth.provider);
   const userAddress = eth.signer ? await eth.signer.getAddress() : ethers.ZeroAddress;
 
-  canClosePoll.value = await acl.canManagePoll(await dao.value.getAddress(), proposalId, userAddress);
+  canClosePoll.value = await acl.canManagePoll(
+    await dao.value.getAddress(),
+    proposalId,
+    userAddress,
+  );
 
   isTokenHolderACL.value = params.acl == import.meta.env.VITE_CONTRACT_ACL_TOKENHOLDER;
   isWhitelistACL.value = params.acl == import.meta.env.VITE_CONTRACT_ACL_VOTERALLOWLIST;
@@ -274,26 +293,55 @@ onMounted(async () => {
     const provider = xchainRPC(xchain.chainId);
     xchainOptions.value = ipfsParams.acl.options;
     const signer_addr = await eth.signer?.getAddress();
-    if( signer_addr ) {
-      const proof = await fetchStorageProof(provider, xchain.blockHash, xchain.address, xchain.slot, signer_addr);
+    if (signer_addr) {
+      const proof = await fetchStorageProof(
+        provider,
+        xchain.blockHash,
+        xchain.address,
+        xchain.slot,
+        signer_addr,
+      );
       console.log('Proof is', proof);
       aclProof.value = proof;
-      canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof);
+      canAclVote.value =
+        0n !=
+        (await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, proof));
     }
-  }
-  else if( 'token' in ipfsParams.acl.options ) {
+  } else if ('token' in ipfsParams.acl.options) {
     const tokenAddress = ipfsParams.acl.options.token;
     aclProof.value = new Uint8Array();
-    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof));
-    aclTokenInfo.value = await tokenDetailsFromProvider(tokenAddress, eth.provider as unknown as JsonRpcProvider);
-  }
-  else if( 'allowList' in ipfsParams.acl.options ) {
+    canAclVote.value =
+      0n !=
+      (await acl.canVoteOnPoll(
+        await dao.value.getAddress(),
+        proposalId,
+        userAddress,
+        toValue(aclProof),
+      ));
+    aclTokenInfo.value = await tokenDetailsFromProvider(
+      tokenAddress,
+      eth.provider as unknown as JsonRpcProvider,
+    );
+  } else if ('allowList' in ipfsParams.acl.options) {
     aclProof.value = new Uint8Array();
-    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof));
-  }
-  else if( 'allowAll' in ipfsParams.acl.options ) {
+    canAclVote.value =
+      0n !=
+      (await acl.canVoteOnPoll(
+        await dao.value.getAddress(),
+        proposalId,
+        userAddress,
+        toValue(aclProof),
+      ));
+  } else if ('allowAll' in ipfsParams.acl.options) {
     aclProof.value = new Uint8Array();
-    canAclVote.value = 0n != await acl.canVoteOnPoll(await dao.value.getAddress(), proposalId, userAddress, toValue(aclProof));
+    canAclVote.value =
+      0n !=
+      (await acl.canVoteOnPoll(
+        await dao.value.getAddress(),
+        proposalId,
+        userAddress,
+        toValue(aclProof),
+      ));
   }
 
   // Retrieve gasless voting addresses & balances
@@ -301,14 +349,18 @@ onMounted(async () => {
   const addrsBalances = await gv.listAddresses(await toValue(dao).getAddress(), proposalId);
   gvAddrs.value = addrsBalances.out_addrs;
   gvBalances.value = addrsBalances.out_balances;
-  if( addrsBalances.out_balances.length > 0 ) {
-    gvTotalBalance.value = gvBalances.value.reduce((a,b) => a + b);
-  }
-  else {
+  if (addrsBalances.out_balances.length > 0) {
+    gvTotalBalance.value = gvBalances.value.reduce((a, b) => a + b);
+  } else {
     gvTotalBalance.value = 0n;
   }
-  if( toValue(gvTotalBalance) > 0n ) {
-    console.log('Gasless voting available', formatEther(toValue(gvTotalBalance)), 'ROSE balance, addrs:', gvAddrs.value.join(', '));
+  if (toValue(gvTotalBalance) > 0n) {
+    console.log(
+      'Gasless voting available',
+      formatEther(toValue(gvTotalBalance)),
+      'ROSE balance, addrs:',
+      gvAddrs.value.join(', '),
+    );
   }
 });
 </script>
@@ -334,11 +386,17 @@ onMounted(async () => {
             }"
             class="choice-btn mb-2 w-full"
             variant="choice"
-            @click="selectedChoice = selectedChoice == BigInt(choiceId) ? undefined : BigInt(choiceId)"
-            :disabled="!canSelect && winningChoice !== undefined && BigInt(choiceId) !== winningChoice"
+            @click="
+              selectedChoice = selectedChoice == BigInt(choiceId) ? undefined : BigInt(choiceId)
+            "
+            :disabled="
+              !canSelect && winningChoice !== undefined && BigInt(choiceId) !== winningChoice
+            "
           >
             <span class="flex gap-2">
-              <CheckedIcon v-if="selectedChoice === BigInt(choiceId) || BigInt(choiceId) === winningChoice" />
+              <CheckedIcon
+                v-if="selectedChoice === BigInt(choiceId) || BigInt(choiceId) === winningChoice"
+              />
               <UncheckedIcon v-else />
               <span class="leading-6">{{ choice }}</span>
               <span class="leading-6" v-if="!poll.proposal.active"
@@ -358,7 +416,12 @@ onMounted(async () => {
           class="capitalize text-white text-2xl font-bold mt-10"
         >
           <label class="inline-block mb-5">Individual votes</label>
-          <p v-for="(addr, i) in votes.out_voters[0]" :key="i" class="text-white text-base" variant="addr">
+          <p
+            v-for="(addr, i) in votes.out_voters[0]"
+            :key="i"
+            class="text-white text-base"
+            variant="addr"
+          >
             {{ addr }}: {{ poll.ipfsParams.choices[Number(votes.out_choices[i])] }}
           </p>
         </div>
@@ -369,7 +432,8 @@ onMounted(async () => {
           <div v-if="aclTokenInfo">
             <br />
             {{ aclTokenInfo.addr }}<br /><br />
-            {{ aclTokenInfo.name }} (<b>{{ aclTokenInfo.symbol }}</b>)
+            {{ aclTokenInfo.name }} (<b>{{ aclTokenInfo.symbol }}</b
+            >)
           </div>
         </div>
 
@@ -379,13 +443,20 @@ onMounted(async () => {
 
         <div v-if="isXChainACL" class="text-white text-center m-5 p-2">
           Only token holders of a cross-chain token may vote on this poll:<br /><br />
-            Address: <b>{{ xchainOptions?.xchain.address }}</b><br />
-            Chain ID: <b>{{ xchainOptions?.xchain.chainId }}</b><br />
-            Slot: <b>{{ xchainOptions?.xchain.slot }}</b><br />
-            Snapshot Block: <b>{{ xchainOptions?.xchain.blockHash }}</b><br />
+          Address: <b>{{ xchainOptions?.xchain.address }}</b
+          ><br />
+          Chain ID: <b>{{ xchainOptions?.xchain.chainId }}</b
+          ><br />
+          Slot: <b>{{ xchainOptions?.xchain.slot }}</b
+          ><br />
+          Snapshot Block: <b>{{ xchainOptions?.xchain.blockHash }}</b
+          ><br />
         </div>
 
-        <div v-if="poll?.proposal?.active && eth.signer && eth.isSapphire" class="flex justify-between items-start mt-6">
+        <div
+          v-if="poll?.proposal?.active && eth.signer && eth.isSapphire"
+          class="flex justify-between items-start mt-6"
+        >
           <AppButton
             type="submit"
             variant="primary"
@@ -397,30 +468,27 @@ onMounted(async () => {
           </AppButton>
 
           <div v-if="canClosePoll">
-            <AppButton
-              variant="secondary"
-              @click="closeBallot"
-              :disabled="isClosing"
-            >
+            <AppButton variant="secondary" @click="closeBallot" :disabled="isClosing">
               <span v-if="isClosing">Closing...</span>
               <span v-else>Close poll</span>
             </AppButton>
           </div>
         </div>
 
-        <div
-          v-if="gvAddrs.length > 0"
-          class="text-white text-base mt-10"
-        >
+        <div v-if="gvAddrs.length > 0" class="text-white text-base mt-10">
           <p class="mb-5 font-bold">Gasless voting enabled:</p>
           <ul>
             <li v-for="(item, index) in gvAddrs">
-              <abbr :title="item"><code>{{ abbrAddr(item) }}</code></abbr>
+              <abbr :title="item"
+                ><code>{{ abbrAddr(item) }}</code></abbr
+              >
               ({{ formatEther(gvBalances![index]) }} ROSE)
-              <a  v-if="eth.signer"
-                  href="#"
-                  @click.prevent="doTopup(item)"
-                  class="rounded bg-white text-black p-2 ml-5 text-xs">
+              <a
+                v-if="eth.signer"
+                href="#"
+                @click.prevent="doTopup(item)"
+                class="rounded bg-white text-black p-2 ml-5 text-xs"
+              >
                 Topup
               </a>
             </li>
@@ -430,10 +498,12 @@ onMounted(async () => {
         <div v-else-if="poll?.proposal?.active">
           <br /><br />
           <section class="pt-5" v-if="!eth.signer">
-            <h2 class="capitalize text-white text-2xl font-bold mb-4">Web3 Wallet Required to Vote</h2>
+            <h2 class="capitalize text-white text-2xl font-bold mb-4">
+              Web3 Wallet Required to Vote
+            </h2>
             <p class="text-white text-base mb-10">
-              In order to continue to use the app and vote on a poll, please connect your Web3 wallet by clicking on the
-              "Connect" button below.
+              In order to continue to use the app and vote on a poll, please connect your Web3
+              wallet by clicking on the "Connect" button below.
             </p>
 
             <div class="flex justify-center">
@@ -441,16 +511,18 @@ onMounted(async () => {
             </div>
           </section>
           <section class="pt-5" v-else-if="!eth.isSapphire">
-            <h2 class="capitalize text-white text-2xl font-bold mb-4">Please Connect to Sapphire</h2>
+            <h2 class="capitalize text-white text-2xl font-bold mb-4">
+              Please Connect to Sapphire
+            </h2>
             <p class="text-white text-base mb-10">
-              In order to continue to use the app and vote on a poll, please switch your Web3 wallet to Oasis Sapphire by clicking on the "Switch" button below.
+              In order to continue to use the app and vote on a poll, please switch your Web3 wallet
+              to Oasis Sapphire by clicking on the "Switch" button below.
             </p>
 
             <div class="flex justify-center">
               <AppButton variant="secondary" @click="eth.connect">Switch</AppButton>
             </div>
           </section>
-
         </div>
 
         <p v-if="error" class="error mt-2 text-center">
