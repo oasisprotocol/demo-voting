@@ -250,6 +250,7 @@ export const useEthereumStore = defineStore('ethereum', () => {
   }
 
   async function switchNetwork(network: Network = Network.FromConfig) {
+    console.log(`Switching network: ${network}`);
     await getSigner(true, true);
   }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
-import { Network, networkName, useEthereumStore } from '../stores/ethereum';
+import { useEthereumStore } from '../stores/ethereum';
 import JazzIcon from './JazzIcon.vue';
 import { abbrAddr } from '@/utils';
 import { useMedia } from '@/useMediaQuery';
@@ -9,9 +9,6 @@ import detectEthereumProvider from '@metamask/detect-provider';
 import type { EIP1193Provider } from '@/stores/eip1193';
 
 const eth = useEthereumStore();
-
-const netName = computed(() => networkName(eth.network));
-const unkNet = computed(() => eth.network === Network.Unknown);
 
 const connecting = ref(false);
 const isMetaMaskInstalled = ref(false);

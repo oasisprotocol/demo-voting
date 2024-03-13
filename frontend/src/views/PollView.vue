@@ -478,7 +478,7 @@ onMounted(async () => {
         <div v-if="gvAddrs.length > 0" class="text-white text-base mt-10">
           <p class="mb-5 font-bold">Gasless voting enabled:</p>
           <ul>
-            <li v-for="(item, index) in gvAddrs">
+            <li v-for="(item, index) in gvAddrs" :key="index">
               <abbr :title="item"
                 ><code>{{ abbrAddr(item) }}</code></abbr
               >

@@ -112,6 +112,7 @@ const token_error = computed<string | undefined>(() => {
       }
     }
   }
+  return undefined;
 });
 const token_valid = computed(() => {
   return toValue(token_addr) && toValue(token_error) === undefined;
@@ -142,6 +143,7 @@ const xchain_rpc = computed<JsonRpcProvider | undefined>(() => {
   if (chainId) {
     return xchainRPC(chainId);
   }
+  return undefined;
 });
 
 watch(xchain_addr, async (xchain_addr) => {
@@ -615,7 +617,7 @@ async function doCreatePoll(): Promise<string> {
 
             <div v-if="acl_allowList_addresses.invalid">
               <ul>
-                <li v-for="(item, key) in acl_allowList_addresses.invalid">
+                <li v-for="(item, key) in acl_allowList_addresses.invalid" :key="key">
                   {{ item }}: {{ key }}
                 </li>
               </ul>
@@ -628,7 +630,7 @@ async function doCreatePoll(): Promise<string> {
               <label for="xchain-chainid" class="mr-3 text-base text-gray-900 p-3"> Chain: </label>
               <select v-model="xchain_chainId" id="xchain-chainid" class="p-3">
                 <option value="">-- Custom --</option>
-                <option v-for="(key, item) in xchain_ChainNamesToChainId" :value="key">
+                <option v-for="(key, item) in xchain_ChainNamesToChainId" :value="key" :key="key">
                   {{ item }} ({{ key }})
                 </option>
               </select>
