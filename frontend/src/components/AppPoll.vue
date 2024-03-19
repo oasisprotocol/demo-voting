@@ -10,7 +10,7 @@
           }}</abbr>
         </div>
       </div>
-      <p class="text-gray-600 text-base">{{ description }}</p>
+      <p class="text-gray-600 text-base" v-html="micromark(description)"></p>
       <div class="p-5" v-if="choices?.length">
         <AppButton
           v-for="(choice, choiceId) in choices"
@@ -34,6 +34,7 @@
 </template>
 
 <script setup lang="ts">
+import {micromark} from 'micromark';
 import JazzIcon from '@/components/JazzIcon.vue';
 import { abbrAddr } from '@/utils';
 import AppButton from '@/components/AppButton.vue';

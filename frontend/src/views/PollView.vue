@@ -12,6 +12,7 @@ import {
 } from 'ethers';
 import { computed, onMounted, ref, toValue } from 'vue';
 
+import {micromark} from 'micromark';
 import {
   IPollACL__factory,
   xchainRPC,
@@ -374,7 +375,7 @@ onMounted(async () => {
           {{ poll.proposal.active ? 'Active' : 'Closed' }}
         </AppBadge>
       </div>
-      <p class="text-white text-base mb-10">{{ poll.ipfsParams.description }}</p>
+      <p class="text-white text-base mb-10" v-html="micromark(poll.ipfsParams.description)"></p>
       <form @submit="vote">
         <div v-if="poll?.ipfsParams.choices">
           <AppButton
@@ -398,7 +399,7 @@ onMounted(async () => {
                 v-if="selectedChoice === BigInt(choiceId) || BigInt(choiceId) === winningChoice"
               />
               <UncheckedIcon v-else />
-              <span class="leading-6">{{ choice }}</span>
+              <span class="leading-6" v-html="micromark(choice)"></span>
               <span class="leading-6" v-if="!poll.proposal.active"
                 >({{ voteCounts[choiceId] }})</span
               >
