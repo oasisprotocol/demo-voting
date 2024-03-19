@@ -11,6 +11,7 @@ import { HardhatUserConfig, task } from 'hardhat/config';
 import '@typechain/hardhat';
 
 import './tasks/deploy';
+import './tasks/poll-close';
 
 const TASK_EXPORT_ABIS = 'export-abis';
 
