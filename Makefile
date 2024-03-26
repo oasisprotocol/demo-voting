@@ -8,6 +8,10 @@ clean:
 	$(MAKE) -C contracts $@
 	$(MAKE) -C frontend $@
 
+deploy: build
+	$(MAKE) -C hardhat deploy-testnet
+	$(MAKE) -C frontend build
+
 node_modules: $(wildcard */package.json)
 	pnpm install
 

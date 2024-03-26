@@ -1,54 +1,69 @@
 // SPDX-License-Identifier: Apache-2.0
+
 pragma solidity ^0.8.0;
 
-import {Sapphire} from '@oasisprotocol/sapphire-contracts/contracts/Sapphire.sol';
-import {EIP155Signer} from '@oasisprotocol/sapphire-contracts/contracts/EIP155Signer.sol';
-import {SignatureRSV,EthereumUtils} from '@oasisprotocol/sapphire-contracts/contracts/EthereumUtils.sol';
-import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import { Sapphire } from '@oasisprotocol/sapphire-contracts/contracts/Sapphire.sol';
+import { EIP155Signer } from '@oasisprotocol/sapphire-contracts/contracts/EIP155Signer.sol';
+import { SignatureRSV, EthereumUtils } from '@oasisprotocol/sapphire-contracts/contracts/EthereumUtils.sol';
+import { IERC165 } from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
-import {ProposalId, ProposalParams} from "./Types.sol";
-import { PollACLv1 } from "./PollACLv1.sol";
-import { AcceptsProxyVotes } from "./AcceptsProxyVotes.sol";
+import { IPollACL } from "../interfaces/IPollACL.sol";
+import { IPollManager } from "../interfaces/IPollManager.sol";
+import { VotingRequest, IGaslessVoter } from "../interfaces/IGaslessVoter.sol";
 
-struct VotingRequest {
-    address voter;
-    bytes32 proposalId;
-    uint256 choiceId;
-}
+/// Poll creators can subsidize voting on proposals
+contract GaslessVoting is IERC165, IGaslessVoter
+{
+    struct EthereumKeypair {
+        bytes32 gvid;
+        address addr;
+        bytes32 secret;
+    }
 
-struct EthereumKeypair {
-    address addr;
-    bytes32 secret;
-    uint64 nonce;
-}
+    struct PollSettings {
+        /// DAO which manages the poll
+        IPollManager dao;
 
-contract GaslessVoting is IERC165 {
-    address private immutable OWNER;
+        /// Creator of the poll
+        address owner;
 
-    EthereumKeypair[] private keypairs;
+        /// After closing votes can no-longer be submitted
+        /// The poll creator can now withdraw funds from the subsidy accounts
+        bool closed;
 
-    mapping(address => uint256) keypair_addresses;
+        /// Keypairs used to subsidise votes
+        EthereumKeypair[] keypairs;
+    }
+
+    struct KeypairIndex {
+        bytes32 gvid;
+        uint n;
+    }
+
+    // ------------------------------------------------------------------------
+
+    mapping(bytes32 => PollSettings) private s_polls;
+
+    /// Lookup a poll and keypair from the address
+    mapping(address => KeypairIndex) private s_addrToKeypair;
 
     bytes32 immutable private encryptionSecret;
 
-    AcceptsProxyVotes public DAO;
+    // ------------------------------------------------------------------------
 
     // EIP-712 parameters
     bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    string public constant VOTINGREQUEST_TYPE = "VotingRequest(address voter,bytes32 proposalId,uint256 choiceId)";
+    string public constant VOTINGREQUEST_TYPE = "VotingRequest(address voter,address dao,bytes32 proposalId,uint256 choiceId)";
     bytes32 public constant VOTINGREQUEST_TYPEHASH = keccak256(bytes(VOTINGREQUEST_TYPE));
-    string public constant CREATEPROPOSAL_TYPE = "CreateProposal(address creator,string ipfsHash,uint16 numChoices,bool publishVotes)";
-    bytes32 public constant CREATEPROPOSAL_TYPEHASH = keccak256(bytes(CREATEPROPOSAL_TYPE));
     bytes32 public immutable DOMAIN_SEPARATOR;
 
-    constructor (address in_owner)
-        payable
-    {
-        OWNER = (in_owner == address(0)) ? msg.sender : in_owner;
+    // ------------------------------------------------------------------------
 
+    constructor ()
+    {
         DOMAIN_SEPARATOR = keccak256(abi.encode(
             EIP712_DOMAIN_TYPEHASH,
-            keccak256("DAOv1.GaslessVoting"),
+            keccak256("GaslessVoting"),
             keccak256("1"),
             block.chainid,
             address(this)
@@ -56,47 +71,186 @@ contract GaslessVoting is IERC165 {
 
         // Generate an encryption key, it is only used by this contract to encrypt data for itself
         encryptionSecret = bytes32(Sapphire.randomBytes(32, ""));
+    }
 
-        // Generate a keypair which will be used to submit transactions to invoke this contract
-        //(signerAddr, signerSecret) = EthereumUtils.generateKeypair();
-        address signerAddr = internal_addKeypair();
+    function supportsInterface(bytes4 interfaceId)
+        external pure
+        returns (bool)
+    {
+        return interfaceId == type(IERC165).interfaceId
+            || interfaceId == type(IGaslessVoter).interfaceId;
+    }
 
-        // Forward on any gas money sent while deploying
-        if( msg.value > 0 ) {
-            payable(signerAddr).transfer(msg.value);
+    function internal_gvid(address in_dao, bytes32 in_proposalId)
+        internal pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(in_dao, in_proposalId));
+    }
+
+    // ------------------------------------------------------------------------
+
+    function listAddresses(address in_dao, bytes32 in_proposalId)
+        external view
+        returns (address[] memory out_addrs, uint256[] memory out_balances)
+    {
+        bytes32 gvid = internal_gvid(in_dao, in_proposalId);
+
+        PollSettings storage poll = s_polls[gvid];
+
+        EthereumKeypair[] storage keypairs = poll.keypairs;
+
+        uint n = keypairs.length;
+
+        if( n > 0 ) {
+            out_addrs = new address[](n);
+            out_balances = new uint256[](n);
+            for( uint i = 0; i < n; i++ ) {
+                out_addrs[i] = keypairs[i].addr;
+                out_balances[i] = keypairs[i].addr.balance;
+            }
         }
     }
+
+    // ------------------------------------------------------------------------
+
+    error onPollCreated_409();
+
+    function onPollCreated(bytes32 in_proposalId, address in_creator)
+        external payable
+    {
+        require( IERC165(msg.sender).supportsInterface(type(IPollManager).interfaceId), "ERC165" );
+
+        bytes32 gvid = internal_gvid(msg.sender, in_proposalId);
+
+        PollSettings storage poll = s_polls[gvid];
+
+        if( poll.dao != IPollManager(address(0)) ) {
+            require(false, "onPollCreated_409()"); // Poll already exists
+        }
+
+        poll.owner = in_creator;
+        poll.dao = IPollManager(msg.sender);
+
+        if( msg.value > 0 )
+        {
+            address payable x = internal_addKeypair(gvid);
+
+            x.transfer(msg.value);
+        }
+    }
+
+    // ------------------------------------------------------------------------
+
+    error onPollClosed_404();
+
+    function onPollClosed(bytes32 in_proposalId)
+        external
+    {
+        bytes32 gvid = internal_gvid(msg.sender, in_proposalId);
+
+        PollSettings storage poll = s_polls[gvid];
+
+        // Poll must exist
+        if( poll.dao == IPollManager(address(0)) ) {
+            require(false, "onPollClosed_404()");
+        }
+
+        poll.closed = true;
+    }
+
+    // ------------------------------------------------------------------------
 
     /**
      * Add a random keypair to the list
      */
-    function internal_addKeypair()
+    function internal_addKeypair(bytes32 in_gvid)
         internal
-        returns (address)
+        returns (address payable)
     {
-        (address signerAddr, bytes32 signerSecret) = EthereumUtils.generateKeypair();
+        address signerAddr;
+        bytes32 signerSecret;
 
-        keypair_addresses[signerAddr] = keypairs.length + 1;
+        if( block.chainid != 1337 ) {
+            (signerAddr, signerSecret) = EthereumUtils.generateKeypair();
+        }
+        else {
+            // Mock this on hardhat
+            signerSecret = keccak256(abi.encodePacked(msg.sender, block.number));
+            signerAddr = address(bytes20(keccak256(abi.encodePacked(signerSecret))));
+        }
 
-        keypairs.push(EthereumKeypair(
-            signerAddr,
-            signerSecret,
-            0
-        ));
+        EthereumKeypair[] storage keypairs = s_polls[in_gvid].keypairs;
 
-        return signerAddr;
+        keypairs.push(EthereumKeypair({
+            gvid: in_gvid,
+            addr: signerAddr,
+            secret: signerSecret
+        }));
+
+        s_addrToKeypair[signerAddr] = KeypairIndex(in_gvid, keypairs.length - 1);
+
+        return payable(signerAddr);
     }
+
+    // ------------------------------------------------------------------------
+
+    error internal_randomKeypair_404();
 
     /**
      * Select a random keypair
      */
-    function internal_randomKeypair()
+    function internal_randomKeypair(bytes32 in_gvid)
         internal view
         returns (EthereumKeypair storage)
     {
+        EthereumKeypair[] storage keypairs = s_polls[in_gvid].keypairs;
+        if( keypairs.length == 0 ) {
+            require(false, "internal_randomKeypair_404()");
+        }
+
         uint16 x = uint16(bytes2(Sapphire.randomBytes(2, "")));
 
+        uint n = keypairs.length;
+
+        require( n > 0 );
+
         return keypairs[x % keypairs.length];
+    }
+
+    // ------------------------------------------------------------------------
+
+    error internal_keypairByAddress_404();
+
+    error internal_keypairForGvidByAddress_404();
+
+    error internal_keypairForGvidByAddress_403();
+
+    /**
+     * Select a keypair given its address
+     * Reverts if it's not one of our keypairs
+     * @param addr Ethererum public address
+     */
+    function internal_keypairForGvidByAddress(bytes32 in_gvid, address addr)
+        internal view
+        returns (
+            EthereumKeypair storage out_keypair
+        )
+    {
+        KeypairIndex memory idx = s_addrToKeypair[addr];
+
+        if( idx.gvid != in_gvid ) {
+            require(false, "internal_keypairForGvidByAddress_403()");
+        }
+
+        // Keypair must exist for address
+        if( idx.gvid == 0 ) {
+            require(false, "internal_keypairForGvidByAddress_404()");
+        }
+
+        PollSettings storage poll = s_polls[idx.gvid];
+
+        out_keypair = poll.keypairs[idx.n];
     }
 
     /**
@@ -106,100 +260,52 @@ contract GaslessVoting is IERC165 {
      */
     function internal_keypairByAddress(address addr)
         internal view
-        returns (EthereumKeypair storage)
+        returns (
+            PollSettings storage out_poll,
+            EthereumKeypair storage out_keypair
+        )
     {
-        uint256 offset = keypair_addresses[addr];
+        KeypairIndex memory idx = s_addrToKeypair[addr];
 
-        require( offset != 0 );
-
-        return keypairs[offset - 1];
-    }
-
-    /**
-     * Reimburse msg.sender for the gas spent
-     * @param gas_start Statring gas measurement
-     */
-    function internal_reimburse(uint gas_start)
-        internal
-    {
-        uint my_balance = address(this).balance;
-
-        if( my_balance > 0 )
-        {
-            uint gas_cost = (gasleft() - gas_start) + 20000;
-
-            uint to_transfer = (gas_cost * tx.gasprice) + block.basefee;
-
-            to_transfer = to_transfer > my_balance ? my_balance : to_transfer;
-
-            if( to_transfer > 0 )
-            {
-                payable(msg.sender).transfer(to_transfer);
-            }
+        // Keypair must exist for address
+        if( idx.gvid == 0 ) {
+            require(false, "internal_keypairByAddress_404()");
         }
+
+        out_poll = s_polls[idx.gvid];
+
+        out_keypair = out_poll.keypairs[idx.n];
     }
 
-    event KeypairCreated(address addr);
+    // ------------------------------------------------------------------------
+
+    error addKeypair_403();
 
     /**
      * Create a random keypair, sending some gas to it
      */
-    function addKeypair ()
+    function addKeypair (address in_dao, bytes32 in_proposalId)
         external payable
     {
-        require( msg.sender == OWNER );
+        bytes32 gvid = internal_gvid(in_dao, in_proposalId);
 
-        address addr = internal_addKeypair();
+        // poll must be owned by sender
+        if( s_polls[gvid].owner != msg.sender ) {
+            require(false, "addKeypair_403()");
+        }
 
-        emit KeypairCreated(addr);
+        address addr = internal_addKeypair(gvid);
 
-        if( msg.value > 0 )
-        {
+        if( msg.value > 0 ) {
             payable(addr).transfer(msg.value);
         }
     }
 
-    function listAddresses ()
-        external view
-        returns (address[] memory)
-    {
-        uint kpl = keypairs.length;
+    // ------------------------------------------------------------------------
 
-        address[] memory addrs = new address[](kpl);
-
-        for( uint i = 0; i < kpl; i++ )
-        {
-            addrs[i] = keypairs[i].addr;
-        }
-
-        return addrs;
-    }
-
-    function supportsInterface(bytes4 interfaceID)
-        external pure
-        returns (bool)
-    {
-        return interfaceID == 0x01ffc9a7 // ERC-165
-            || interfaceID == this.makeVoteTransaction.selector;
-    }
-
-    function setDAO(AcceptsProxyVotes in_dao)
-        external
-    {
-        require( msg.sender == OWNER );
-
-        // Can only be set once
-        require( address(DAO) == address(0) );
-
-        DAO = in_dao;
-    }
-
-    function getChainId()
-        external view
-        returns (uint256)
-    {
-        return block.chainid;
-    }
+    error makeVoteTransaction_404();
+    error makeVoteTransaction_401();
+    error makeVoteTransaction_403();
 
     /**
      * Validate a users voting request, then give them a signed transaction to commit the vote
@@ -208,22 +314,35 @@ contract GaslessVoting is IERC165 {
      * and hides all info about what their address is, which ballot they were voting on and
      * what their vote was.
      *
-     * @param gasPrice Which gas price to use when submitting transaction
-     * @param request Voting Request
-     * @param rsv EIP-712 signature for request
+     * @param in_gasPrice Which gas price to use when submitting transaction
+     * @param in_request Voting Request
+     * @param in_rsv EIP-712 signature for request
      * @return output Signed transaction to submit via eth_sendRawTransaction
      */
     function makeVoteTransaction(
-        uint256 gasPrice,
-        VotingRequest calldata request,
-        SignatureRSV calldata rsv
+        address in_addr,
+        uint64 in_nonce,
+        uint256 in_gasPrice,
+        VotingRequest calldata in_request,
+        bytes calldata in_data,
+        SignatureRSV calldata in_rsv
     )
         external view
         returns (bytes memory output)
     {
+        bytes32 gvid = internal_gvid(in_request.dao, in_request.proposalId);
+
+        IPollManager dao = s_polls[gvid].dao;
+
+        if( dao == IPollManager(address(0)) ) {
+            require(false, "makeVoteTransaction_404()");
+        }
+
         // User must be able to vote on the poll
         // so we don't waste gas submitting invalid transactions
-        require( DAO.getACL().canVoteOnPoll(address(DAO), ProposalId.wrap(request.proposalId), request.voter) );
+        if( 0 == dao.canVoteOnPoll(in_request.proposalId, in_request.voter, in_data) ) {
+            require(false, "makeVoteTransaction_401()");
+        }
 
         // Validate EIP-712 signed voting request
         bytes32 requestDigest = keccak256(abi.encodePacked(
@@ -231,143 +350,147 @@ contract GaslessVoting is IERC165 {
             DOMAIN_SEPARATOR,
             keccak256(abi.encode(
                 VOTINGREQUEST_TYPEHASH,
-                request.voter,
-                request.proposalId,
-                request.choiceId
+                in_request.voter,
+                in_request.dao,
+                in_request.proposalId,
+                in_request.choiceId
             ))
         ));
-        require( request.voter == ecrecover(requestDigest, uint8(rsv.v), rsv.r, rsv.s), "Invalid Request!" );
+        if( in_request.voter != ecrecover(requestDigest, uint8(in_rsv.v), in_rsv.r, in_rsv.s) ) {
+            require(false, "makeVoteTransaction_403()");
+        }
 
         // Encrypt request to authenticate it when we're invoked again
         bytes32 ciphertextNonce = keccak256(abi.encodePacked(encryptionSecret, requestDigest));
 
-        // Inner call to DAO contract
-        bytes memory innercall = abi.encodeWithSelector(DAO.proxyVote.selector, request.voter, ProposalId.wrap(request.proposalId), request.choiceId);
+        bytes memory plaintext = abi.encode(
+                            dao,
+                            abi.encodeCall(
+                                dao.proxy,
+                                (in_request.voter,
+                                 in_request.proposalId,
+                                 in_request.choiceId,
+                                 in_data)
+                            ));
 
-        // Encrypt inner call, with DAO address as target
-        bytes memory ciphertext = Sapphire.encrypt(encryptionSecret, ciphertextNonce, abi.encode(address(DAO), innercall), "");
+        // Choose a random keypair to submit the transaction from
+        EthereumKeypair memory kp = internal_keypairForGvidByAddress(gvid, in_addr);
 
-        // Call will invoke the proxy
-        bytes memory data = abi.encodeWithSelector(this.proxy.selector, ciphertextNonce, ciphertext);
+        bytes memory ciphertext = Sapphire.encrypt(
+                        encryptionSecret,
+                        ciphertextNonce,
+                        plaintext,
+                        "");
 
-        // TODO: simulate query to get gas limit? then increase by 20%
-
-        EthereumKeypair memory kp = internal_randomKeypair();
+        bytes memory innerCall = abi.encodeCall(this.proxy, (ciphertextNonce, ciphertext));
 
         // Return signed transaction invoking 'submitEncryptedVote'
-        return EIP155Signer.sign(kp.addr, kp.secret, EIP155Signer.EthTx({
-            nonce: kp.nonce,
-            gasPrice: gasPrice,
-            gasLimit: 250000,
-            to: address(this),
-            value: 0,
-            data: data,
-            chainId: block.chainid
-        }));
+        return EIP155Signer.sign(
+            kp.addr,
+            kp.secret,
+            EIP155Signer.EthTx({
+                nonce: in_nonce,
+                gasPrice: in_gasPrice,
+                gasLimit: 2500000,
+                to: address(this),
+                value: 0,
+                chainId: block.chainid,
+                data: innerCall
+            }));
     }
 
-    function makeProposalTransaction(
-        uint256 gasPrice,
-        address creator,
-        ProposalParams calldata request,
+    // ------------------------------------------------------------------------
+
+    error proxy_403();
+    error proxy_500();
+
+    function proxy(bytes32 ciphertextNonce, bytes memory ciphertext)
+        public payable
+    {
+        EthereumKeypair storage kp;
+
+        (,kp) = internal_keypairByAddress(msg.sender);
+        if( kp.gvid == 0 ) {    // Keypair must exist and belong to the sender
+            require(false, "proxy_403()");
+        }
+
+        bytes memory plaintext = Sapphire.decrypt(encryptionSecret, ciphertextNonce, ciphertext, "");
+
+        (address addr, bytes memory subcall_data) = abi.decode(plaintext, (address, bytes));
+
+        (bool success, bytes memory reason) = addr.call{value: msg.value}(subcall_data);
+
+        if( ! success )
+        {
+            require( reason.length > 0, "proxy_500()" );
+
+            if( reason.length > 0) {
+                /// @solidity memory-safe-assembly
+                assembly {
+                    revert(add(32, reason), mload(reason))
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------------
+
+    error withdraw_404();
+    error withdraw_401();
+    error withdraw_403();
+    error withdraw_412();
+
+    function withdraw(
+        address in_dao,
+        bytes32 in_proposalId,
+        address in_keypairAddress,
+        uint64 in_nonce,
+        uint256 in_amount,
+        uint256 in_gasPrice,
         SignatureRSV calldata rsv
     )
         external view
-        returns (bytes memory)
-    {
-        require( DAO.getACL().canCreatePoll(address(DAO), creator), "ACL disallows poll creation" );
-
-        bytes32 requestDigest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            DOMAIN_SEPARATOR,
-            keccak256(abi.encode(
-                CREATEPROPOSAL_TYPEHASH,
-                creator,
-                keccak256(abi.encodePacked(request.ipfsHash)),
-                request.numChoices,
-                request.publishVotes
-            ))
-        ));
-        require( creator == ecrecover(requestDigest, uint8(rsv.v), rsv.r, rsv.s), "Invalid Request!" );
-
-        // Encrypt request to authenticate it when we're invoked again
-        bytes32 ciphertextNonce = keccak256(abi.encodePacked(encryptionSecret, requestDigest));
-
-        // Inner call to DAO contract
-        bytes memory innercall = abi.encodeWithSelector(DAO.createProposal.selector, request);
-
-        // Encrypt inner call, with DAO address as target
-        bytes memory ciphertext = Sapphire.encrypt(encryptionSecret, ciphertextNonce, abi.encode(address(DAO), innercall), "");
-
-        // TODO: simulate query to get gas limit? then increase by 20%
-
-        EthereumKeypair memory kp = internal_randomKeypair();
-
-        // Return signed transaction invoking 'submitEncryptedVote'
-        return EIP155Signer.sign(kp.addr, kp.secret, EIP155Signer.EthTx({
-            nonce: kp.nonce,
-            gasPrice: gasPrice,
-            gasLimit: 1000000,
-            to: address(this),
-            value: 0,
-            data: abi.encodeWithSelector(this.proxy.selector, ciphertextNonce, ciphertext),
-            chainId: block.chainid
-        }));
-    }
-
-    function proxy(bytes32 ciphertextNonce, bytes memory data)
-        external payable
-    {
-        uint gas_start = gasleft();
-
-        EthereumKeypair storage kp = internal_keypairByAddress(msg.sender);
-
-        (address addr, bytes memory subcall_data) = abi.decode(Sapphire.decrypt(encryptionSecret, ciphertextNonce, data, ""), (address, bytes));
-
-        (bool success,) = addr.call{value: msg.value}(subcall_data);
-
-        require( success );
-
-        kp.nonce += 1;
-
-        internal_reimburse(gas_start);
-    }
-
-    /**
-     * Allow the owner to withdraw excess funds from the Signing Account
-     *
-     * TODO: use signed queries?
-     *
-     * @param nonce transaction nonce
-     * @param gasPrice gas price to use when submitting transaction
-     * @param amount amount to withdraw
-     * @param rsv signature R, S & V values
-     * @return transaction signed by Signing Account
-     */
-    /*
-    function withdraw(address signer, uint64 nonce, uint256 gasPrice, uint256 amount, SignatureRSV calldata rsv)
-        external view
         returns (bytes memory transaction)
     {
-        bytes32 inner_digest = keccak256(abi.encode(address(this), nonce, gasPrice, amount));
+        bytes32 gvid = internal_gvid(in_dao, in_proposalId);
 
+        // poll must exist
+        address owner = s_polls[gvid].owner;
+        if( owner == address(0) ) {
+            revert withdraw_404();
+        }
+
+        bytes32 inner_digest = keccak256(abi.encode(address(this), in_dao, in_proposalId));
         bytes32 digest = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", inner_digest));
 
-        require( OWNER == ecrecover(digest, uint8(rsv.v), rsv.r, rsv.s), "Not owner account!" );
+        // Signature must be from owner
+        if( owner != ecrecover(digest, uint8(rsv.v), rsv.r, rsv.s) ) {
+            revert withdraw_401();
+        }
 
-        require( keypair_addresses[signer] != 0 );
+        PollSettings storage poll;
 
-        EthereumKeypair memory kp = keypairs[keypair_addresses[signer]];
+        EthereumKeypair storage kp;
+
+        (poll, kp) = internal_keypairByAddress(in_keypairAddress);
+
+        // signer must be poll owner
+        if( poll.owner != owner) {
+            revert withdraw_403();
+        }
+
+        if( poll.closed == false ) {
+            revert withdraw_412();  // Creator can only withdraw after closing poll
+        }
 
         return EIP155Signer.sign(kp.addr, kp.secret, EIP155Signer.EthTx({
-            nonce: nonce,
-            gasPrice: gasPrice,
+            nonce: in_nonce,
+            gasPrice: in_gasPrice,
             gasLimit: 250000,
-            to: OWNER,
-            value: amount,
+            to: owner,
+            value: in_amount,
             data: "",
             chainId: block.chainid
         }));
     }
-    */
 }
