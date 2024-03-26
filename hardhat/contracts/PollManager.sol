@@ -167,7 +167,7 @@ contract PollManager is IERC165, IPollManager {
 
         bytes32 proposalId = keccak256(abi.encode(msg.sender, in_params, in_aclData));
 
-        if (PROPOSALS[proposalId].active) {
+        if (PROPOSALS[proposalId].params.numChoices != 0) {
             revert Create_AlreadyExists();
         }
 
