@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import JazzIcon from '@/components/JazzIcon.vue';
-import { abbrAddr } from '@/utils/utils';
+import { abbrAddr } from '@/utils';
 import AppButton from '@/components/AppButton.vue';
 import CheckIcon from '@/components/CheckIcon.vue';
 

@@ -1,45 +1,53 @@
 import { computed, type ComputedRef } from 'vue';
 
-import { DAOv1__factory, PollACLv1__factory, GaslessVoting__factory } from '@oasisprotocol/demo-voting-contracts/factories';
-import type { DAOv1, GaslessVoting, PollACLv1 } from '@oasisprotocol/demo-voting-contracts/contracts'
-export type { DAOv1 };
+import { PollManager__factory, GaslessVoting__factory, IPollManagerACL__factory, IPollACL__factory } from '@oasisprotocol/demo-voting-contracts';
+import type { PollManager, GaslessVoting, IPollACL, IPollManagerACL } from '@oasisprotocol/demo-voting-contracts';
+
 import { useEthereumStore } from './stores/ethereum';
 
-export function useDAOv1(): ComputedRef<DAOv1> {
+export function usePollManager(): ComputedRef<PollManager> {
   const eth = useEthereumStore();
-  const addr = import.meta.env.VITE_DAO_V1_ADDR!;
+  const addr = import.meta.env.VITE_CONTRACT_POLLMANAGER;
+  console.log('PollManager at', addr);
   return computed(() => {
-    return DAOv1__factory.connect(addr, eth.provider);
+    return PollManager__factory.connect(addr, eth.provider);
   });
 }
 
-export function useDAOv1WithSigner(): DAOv1 {
+export function usePollManagerWithSigner(): PollManager {
   const eth = useEthereumStore();
-  const addr = import.meta.env.VITE_DAO_V1_ADDR!;
+  const addr = import.meta.env.VITE_CONTRACT_POLLMANAGER;
   if( ! eth.signer ) {
     throw new Error('useDAOv1WithSigner, !eth.signer');
   }
-  return DAOv1__factory.connect(addr, eth.signer);
+  return PollManager__factory.connect(addr, eth.signer);
 }
 
-export async function usePollACLv1(): Promise<ComputedRef<PollACLv1>> {
+export async function usePollACL(): Promise<ComputedRef<IPollACL>> {
   const eth = useEthereumStore();
-  const dao = useDAOv1().value;
+  const dao = usePollManager().value;
 
-  const ref = PollACLv1__factory.connect(await dao.getACL(), eth.provider);
+  const ref = IPollACL__factory.connect(await dao.getACL(), eth.provider);
 
   return computed(() => {
     return ref;
   });
 }
 
-export async function useGaslessVoting(): Promise<ComputedRef<GaslessVoting>> {
+export async function usePollManagerACL(): Promise<ComputedRef<IPollManagerACL>> {
   const eth = useEthereumStore();
-  const dao = useDAOv1().value;
-  const proxyVoter = await dao.proxyVoter();
-
-  const ref = GaslessVoting__factory.connect(proxyVoter, eth.provider);
-
-  return computed(() => { return ref });
+  const addr = import.meta.env.VITE_CONTRACT_POLLMANAGER_ACL;
+  return computed(() => {
+    console.log('IPollManagerACL at', addr);
+    return IPollManagerACL__factory.connect(addr, eth.provider);
+  });
 }
 
+export async function useGaslessVoting(): Promise<ComputedRef<GaslessVoting>> {
+  const eth = useEthereumStore();
+  const addr = import.meta.env.VITE_CONTRACT_GASLESSVOTING;
+  console.log('GaslessVoting at', addr);
+  return computed(() => {
+    return GaslessVoting__factory.connect(addr, eth.provider);
+  });
+}

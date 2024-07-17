@@ -13,7 +13,7 @@ pnpm install
 
 ## Backend
 
-Move to the `backend` folder and build smart contracts:
+Move to the `contracts` folder and build smart contracts:
 
 ```sh
 pnpm build
@@ -22,6 +22,8 @@ pnpm build
 Next, deploy the contract.
 
 ### Basic Local Hardhat Deployment
+
+Move to the `hardhat` folder and build smart contracts:
 
 Start the hardhat node:
 
@@ -45,7 +47,6 @@ inside the `frontend` folder's `.env.development`, for example:
 ```
 VITE_DAO_V1_ADDR=0x5FbDB2315678afecb367f032d93F642f64180aa3
 ```
-
 
 ### Monitoring Signer Accounts
 

@@ -1,6 +1,9 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 
 import HomeView from './views/HomeView.vue';
+import CreatePollViewVue from './views/CreatePollView.vue';
+import PollViewVue from './views/PollView.vue';
+import NotFoundVue from './views/NotFound.vue';
 
 const router = createRouter({
   strict: true,
@@ -12,18 +15,19 @@ const router = createRouter({
     },
     {
       path: '/polls',
-      component: () => import('./views/CreatePollView.vue'),
+      component: CreatePollViewVue,
       name: 'createPoll',
     },
     {
       path: '/polls/:id([0-9a-fA-F]{64,64})',
-      component: () => import('./views/PollView.vue'),
+      component: PollViewVue,
       props: true,
       name: 'poll',
     },
     {
       path: '/:path(.*)',
-      component: () => import('./views/404View.vue'),
+      name: 'NotFound',
+      component: NotFoundVue,
     },
   ],
 });

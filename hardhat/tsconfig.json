@@ -1,5 +1,5 @@
 {
-  "include": ["src", "scripts", "test", "typechain-types"],
+  "include": ["src", "tasks", "scripts", "test"],
   "files": ["hardhat.config.ts"],
   "compilerOptions": {
     "noEmit": true,
@@ -10,6 +10,6 @@
     "sourceMap": true,
     "strict": true,
     "target": "es2020",
-    "outDir": "../lib/cjs"
+    "outDir": "lib/esm"
   }
 }

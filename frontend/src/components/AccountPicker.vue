@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 
 import { Network, networkName, useEthereumStore } from '../stores/ethereum';
 import JazzIcon from './JazzIcon.vue';
-import { abbrAddr } from '@/utils/utils';
-import { useMedia } from '@/utils/useMediaQuery';
+import { abbrAddr } from '@/utils';
+import { useMedia } from '@/useMediaQuery';
 import detectEthereumProvider from '@metamask/detect-provider';
 import type { EIP1193Provider } from '@/stores/eip1193';
 
@@ -60,12 +60,9 @@ onMounted(async () => {
     @click="connectWallet"
   >
     <span class="account-picker-content" v-if="!connecting && eth.address">
-      <JazzIcon :size="isXlScreen ? 60 : 30" :address="eth.address" />
+      <JazzIcon :size="isXlScreen ? 30 : 30" :address="eth.address" />
       <span class="font-mono font-bold">
         <abbr :title="eth.address" class="block no-underline">{{ abbrAddr(eth.address) }}</abbr>
-        <span v-if="isXlScreen" class="font-normal" :class="{ 'unk-net': unkNet }">{{
-          netName
-        }}</span>
       </span>
     </span>
     <span class="account-picker-content" v-else-if="!isMetaMaskInstalled">
@@ -84,11 +81,11 @@ onMounted(async () => {
 
 <style lang="postcss" scoped>
 .account-picker-content {
-  @apply inline-flex items-center gap-2 xl:gap-6;
+  @apply inline-flex items-center gap-1 xl:gap-6;
 }
 
 .account-picker {
-  @apply inline-flex items-center border border-gray-900 rounded-xl bg-white border-primaryDark h-12 p-2 xl:p-4 xl:fixed xl:right-10 xl:top-28 xl:h-auto;
+  @apply inline-flex items-center border border-gray-900 rounded-xl bg-white border-primaryDark h-12 p-2 h-fit;
   border-width: 3px;
   border-style: solid;
 
@@ -98,7 +95,7 @@ onMounted(async () => {
 }
 
 span {
-  @apply text-base text-primaryDark text-right xl:text-xl;
+  @apply text-base text-primaryDark text-right xl:text-lg;
 }
 
 .unk-net {

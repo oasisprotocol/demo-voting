@@ -27,9 +27,9 @@ export interface EIP1193Provider {
 	request(request: { method: 'eth_blockNumber' }): Promise<`0x${string}`>;
 	request(request: { method: 'eth_accounts' }): Promise<`0x${string}`[]>;
 	request(request: { method: 'eth_requestAccounts' }): Promise<`0x${string}`[]>;
-    request(request: { method: string, params?: Array<any> | Record<string, any> }): Promise<any>;
+  request(request: { method: string, params?: Array<any> | Record<string, any> }): Promise<any>;
 
-    on(event: 'connect', listener: (info: EIP1193ProviderInfo) => void): EIP1193Provider;
+  on(event: 'connect', listener: (info: EIP1193ProviderInfo) => void): EIP1193Provider;
 	on(event: 'disconnect', listener: (error: EIP1193ProviderRpcError) => void): EIP1193Provider;
 	on(event: 'message', listener: (message: EIP1193ProviderMessage) => void): EIP1193Provider;
 	on(event: 'chainChanged', listener: (chainId: string) => void): EIP1193Provider;

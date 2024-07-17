@@ -2,7 +2,7 @@ import detectEthereumProvider from '@metamask/detect-provider';
 import { wrap as sapphireWrap, NETWORKS as SAPPHIRE_NETWORKS } from '@oasisprotocol/sapphire-paratime';
 import { toQuantity, JsonRpcProvider, JsonRpcApiProvider, JsonRpcSigner, BrowserProvider } from 'ethers';
 import { defineStore } from 'pinia';
-import { markRaw, ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef, toValue } from 'vue';
 import type { EIP1193Provider } from './eip1193';
 
 export enum Network {
@@ -16,6 +16,7 @@ export enum Network {
   SapphireTestnet = 0x5aff,
   SapphireMainnet = 0x5afe,
   SapphireLocalnet = 0x5afd,
+  PolygonMumbai = 0x13381,
   Local = 1337,
 
   FromConfig = parseInt(import.meta.env.VITE_NETWORK),
@@ -39,6 +40,7 @@ const networkNameMap: Record<Network, string> = {
   [Network.SapphireTestnet]: 'Sapphire Testnet',
   [Network.SapphireMainnet]: 'Sapphire Mainnet',
   [Network.SapphireLocalnet]: 'Sapphire Localnet',
+  [Network.PolygonMumbai]: 'Polygon Mumbai',
   [Network.BscMainnet]: 'BSC',
   [Network.BscTestnet]: 'BSC Testnet',
 } as const;
@@ -68,13 +70,12 @@ declare global {
 
 export const useEthereumStore = defineStore('ethereum', () => {
   const signer = shallowRef<JsonRpcSigner | undefined>(undefined);
-  const provider = shallowRef<JsonRpcApiProvider>(
-    markRaw(sapphireWrap(new JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any'))),
-  );
+  const provider = sapphireWrap(new JsonRpcProvider(import.meta.env.VITE_WEB3_GATEWAY, 'any')) as JsonRpcProvider;
   const network = ref(Network.FromConfig);
   const address = ref<string | undefined>();
   const status = ref(ConnectionStatus.Unknown);
   const isSapphire = ref<boolean>(false);
+  const isHomeChain = computed<boolean>(() => toValue(network) == Network.FromConfig );
 
   async function _changeAccounts(accounts:string[])
   {
@@ -124,7 +125,6 @@ export const useEthereumStore = defineStore('ethereum', () => {
   async function getSigner (in_doConnect?:boolean, in_doSwitch?:boolean, in_account?:string) {
     let l_signer : JsonRpcSigner | undefined;
     let l_provider : JsonRpcApiProvider | undefined;
-
     if( ! signer.value || (in_account && await signer.value.getAddress() != in_account) ) {
       const ethProvider = await detectEthereumProvider<EIP1193Provider>();
       if( ! ethProvider ) {
@@ -264,7 +264,8 @@ export const useEthereumStore = defineStore('ethereum', () => {
     connect,
     addNetwork,
     switchNetwork,
-    isSapphire
+    isSapphire,
+    isHomeChain
   };
 
 });
