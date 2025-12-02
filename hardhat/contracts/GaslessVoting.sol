@@ -23,13 +23,13 @@ struct EthereumKeypair {
 }
 
 contract GaslessVoting is IERC165 {
-    address private immutable OWNER;
+    address public immutable OWNER;
 
     EthereumKeypair[] private keypairs;
 
     mapping(address => uint256) keypair_addresses;
 
-    bytes32 immutable private encryptionSecret;
+    bytes32 private encryptionSecret;
 
     AcceptsProxyVotes public DAO;
 
